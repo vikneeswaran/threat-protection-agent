@@ -10,8 +10,10 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "KuaminiThreatProtectAgent - Enterprise Security Console",
-  description: "Enterprise threat protection management console for Windows, macOS, and Linux endpoints",
+  title: "Innovative Software Solutions for Business | Kuamini Systems",
+  description:
+    "Welcome to Kuamini Systems Private Limited, your trusted partner in delivering innovative business solutions. We specialize in enhancing operational efficiency and driving growth for businesses of all sizes.",
+  keywords: ["Kuamini Systems", "Innovative Software Solutions", "AI", "Cloud Integration", "Software Development"],
   generator: "v0.app",
   icons: {
     icon: [
@@ -40,7 +42,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <Toaster />
         </ThemeProvider>
