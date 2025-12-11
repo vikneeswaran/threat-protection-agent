@@ -22,7 +22,7 @@ export function InstallersPage({ profile, account }: InstallersPageProps) {
   const [baseUrl, setBaseUrl] = useState("")
 
   useEffect(() => {
-    setBaseUrl(window.location.origin)
+    setBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL || "https://kuaminisystems.com")
   }, [])
 
   const registrationToken = Buffer.from(

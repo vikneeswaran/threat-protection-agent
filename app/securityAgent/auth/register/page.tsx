@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
 import { Shield } from "lucide-react"
 
 export default function RegisterPage() {
@@ -21,6 +23,8 @@ export default function RegisterPage() {
   const [organizationName, setOrganizationName] = useState("")
   const [licenseTier, setLicenseTier] = useState("free")
   const [error, setError] = useState<string | null>(null)
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
+    const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
@@ -48,8 +52,10 @@ export default function RegisterPage() {
         password,
         options: {
           emailRedirectTo:
-            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-            `${window.location.origin}/securityAgent/auth/callback`,
+            // Prefer explicit redirect URL env var (set this to your production callback URL).
+            process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ||
+            // Fallback to production domain callback. No localhost defaults kept in repo.
+            "https://kuaminisystems.com/securityAgent/auth/callback",
           data: {
             full_name: fullName,
             organization_name: organizationName,
@@ -58,7 +64,43 @@ export default function RegisterPage() {
           },
         },
       })
-      if (error) throw error
+      if (error) {
+        // If the user already exists, attempt to attach this registration (organization) to the
+        // existing auth user via a server-side admin endpoint. This allows using the same
+        // email across multiple organizations (profiles/accounts) by linking the existing
+        // auth user to a new `accounts`/`profiles` row.
+        const msg = error.message || ""
+        if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("user already exists") || msg.toLowerCase().includes("duplicate")) {
+          try {
+            const res = await fetch("/api/auth/register-existing", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, full_name: fullName, organization_name: organizationName, license_tier: licenseTier }),
+            })
+
+            if (res.ok) {
+                // Show a dismissible toast informing the user and linking to sign in
+                toast({
+                  title: "Organization attached",
+                  description:
+                    "An account already exists for this email — your new organization has been attached.",
+                  action: (
+                    <ToastAction asChild>
+                      <a href="/securityAgent/auth/login">Sign in</a>
+                    </ToastAction>
+                  ),
+                })
+              setIsLoading(false)
+              return
+            }
+            const body = await res.json().catch(() => ({}))
+            throw new Error(body?.message || "Failed to register existing user")
+          } catch (e: unknown) {
+            throw e instanceof Error ? e : new Error("Registration failed")
+          }
+        }
+        throw error
+      }
       router.push("/securityAgent/auth/verify-email")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")

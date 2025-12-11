@@ -2,8 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 
 // Get the base URL for the API
 function getBaseUrl(request: NextRequest): string {
-  const host = request.headers.get("host") || "localhost:3000"
-  const protocol = host.includes("localhost") ? "http" : "https"
+  // Default to production domain and HTTPS when host header is missing.
+  const host = request.headers.get("host") || "kuaminisystems.com"
+  const protocol = "https"
   return `${protocol}://${host}`
 }
 

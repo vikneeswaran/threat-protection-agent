@@ -24,10 +24,7 @@ export default function ScriptPage() {
       setLoading(true)
       setError(null)
 
-      const apiBaseUrl =
-        process.env.NODE_ENV === "production"
-          ? `${config.productionDomain}/api/agent`
-          : `${window.location.origin}/api/agent`
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || `${config.productionDomain}/api/agent`
 
       let tokenData = { accountId: "", accountName: "" }
       let token = tokenFromUrl || ""

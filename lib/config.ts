@@ -17,12 +17,9 @@ export const config = {
 
   // Get the full API URL based on environment
   getApiBaseUrl: () => {
-    if (typeof window !== "undefined") {
-      // Client-side: use current origin
-      return `${window.location.origin}/api/agent`
-    }
-    // Server-side: use production URL or env variable
-    return process.env.NEXT_PUBLIC_API_BASE_URL || "https://kuaminisystems.com/api/agent"
+    // Prefer explicit environment variable for API base (used by both client & server).
+    // Fallback to the production domain if not set. No localhost fallback kept in repository.
+    return process.env.NEXT_PUBLIC_API_BASE_URL || `${config.productionDomain}/api/agent`
   },
 
   // Agent configuration
