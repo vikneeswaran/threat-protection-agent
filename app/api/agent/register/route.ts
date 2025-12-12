@@ -92,6 +92,11 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Registration error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const isDebug = process.env.DEBUG_REGISTRATION === "true" || process.env.NODE_ENV !== "production"
+    const errMessage = error instanceof Error ? error.message : String(error)
+    const payload = isDebug
+      ? { error: "Internal server error", details: errMessage, stack: error instanceof Error ? error.stack : undefined }
+      : { error: "Internal server error" }
+    return NextResponse.json(payload, { status: 500 })
   }
 }
