@@ -7,7 +7,7 @@ const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, proces
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { token, hostname, os, os_version, agent_version, ip_address, mac_address } = body
+    const { token, hostname, os, os_version, agent_version, ip_address, mac_address, agent_id } = body
 
     if (!token) {
       return NextResponse.json({ error: "Registration token is required" }, { status: 400 })
@@ -48,31 +48,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if endpoint with same hostname and mac_address already exists for this account
-    const { data: existingEndpoint } = await supabaseAdmin
-      .from("endpoints")
-      .select("id")
-      .eq("account_id", accountId)
-      .eq("hostname", hostname)
-      .eq("mac_address", mac_address)
-      .maybeSingle()
+    // Check if endpoint already exists — prefer `agent_id` when provided, otherwise fall back to mac+hostname
+    let existingEndpoint: any = null
+    if (agent_id) {
+      const { data } = await supabaseAdmin.from("endpoints").select("id").eq("agent_id", agent_id).maybeSingle()
+      existingEndpoint = data
+    } else {
+      const { data } = await supabaseAdmin
+        .from("endpoints")
+        .select("id")
+        .eq("account_id", accountId)
+        .eq("hostname", hostname)
+        .eq("mac_address", mac_address)
+        .maybeSingle()
+      existingEndpoint = data
+    }
 
     if (existingEndpoint) {
-      // Update existing endpoint
-      const { data: updatedEndpoint, error: updateError } = await supabaseAdmin
-        .from("endpoints")
-        .update({
-          os,
-          os_version,
-          agent_version,
-          ip_address,
-          status: "online",
-          last_seen_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingEndpoint.id)
-        .select()
-        .single()
+      const updateQuery = supabaseAdmin.from("endpoints").update({
+        os,
+        os_version,
+        agent_version,
+        ip_address,
+        mac_address,
+        agent_id: agent_id || null,
+        status: "online",
+        last_seen_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+
+      if (agent_id) {
+        updateQuery.eq("agent_id", agent_id)
+      } else {
+        updateQuery.eq("id", existingEndpoint.id)
+      }
+
+      const { data: updatedEndpoint, error: updateError } = await updateQuery.select().single()
 
       if (updateError) {
         return NextResponse.json({ error: "Failed to update endpoint" }, { status: 500 })
@@ -90,6 +101,7 @@ export async function POST(request: NextRequest) {
       .from("endpoints")
       .insert({
         account_id: accountId,
+        agent_id: agent_id || null,
         hostname,
         os,
         os_version,

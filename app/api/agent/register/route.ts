@@ -3,7 +3,20 @@ import { createClient } from "@supabase/supabase-js"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch (parseErr) {
+      const raw = await request.text()
+      try {
+        const repaired = raw.replace(/("token"\s*:\s*")([^"]*)(")/s, (_, p1, p2, p3) => p1 + String(p2).replace(/\s+/g, "") + p3)
+        body = JSON.parse(repaired)
+        console.warn("Repaired JSON body by cleaning token whitespace")
+      } catch (repairErr) {
+        console.error("Failed to parse JSON body and repair token:", repairErr, "original error:", parseErr)
+        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+      }
+    }
     const { token, hostname, os, os_version, agent_version, agent_id } = body
 
     if (!token || !hostname || !os) {
@@ -25,26 +38,44 @@ export async function POST(request: NextRequest) {
     // Create admin client to bypass RLS
     const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // Check if endpoint already exists
-    const { data: existingEndpoint } = await supabaseAdmin
-      .from("endpoints")
-      .select("id")
-      .eq("agent_id", agent_id)
-      .maybeSingle()
+    // Check if endpoint already exists — prefer `agent_id` when provided, otherwise fall back to mac+hostname
+    let existingEndpoint: any = null
+    if (agent_id) {
+      const { data } = await supabaseAdmin.from("endpoints").select("id").eq("agent_id", agent_id).maybeSingle()
+      existingEndpoint = data
+    } else {
+      const { data } = await supabaseAdmin
+        .from("endpoints")
+        .select("id")
+        .eq("account_id", accountId)
+        .eq("hostname", hostname)
+        .eq("mac_address", body.mac_address || null)
+        .maybeSingle()
+      existingEndpoint = data
+    }
 
     if (existingEndpoint) {
-      // Update existing endpoint
-      const { error: updateError } = await supabaseAdmin
-        .from("endpoints")
-        .update({
-          hostname,
-          os,
-          os_version,
-          agent_version,
-          status: "online",
-          last_seen: new Date().toISOString(),
-        })
-        .eq("agent_id", agent_id)
+      // Update existing endpoint using primary lookup
+      const updateQuery = supabaseAdmin.from("endpoints").update({
+        hostname,
+        os,
+        os_version,
+        agent_version,
+        agent_id: agent_id || null,
+        ip_address: body.ip_address || null,
+        mac_address: body.mac_address || null,
+        status: "online",
+        last_seen_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+
+      if (agent_id) {
+        updateQuery.eq("agent_id", agent_id)
+      } else {
+        updateQuery.eq("id", existingEndpoint.id)
+      }
+
+      const { data: updatedEndpoint, error: updateError } = await updateQuery.select().single()
 
       if (updateError) {
         console.error("Failed to update endpoint:", updateError)
@@ -54,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Endpoint updated",
-        endpoint_id: existingEndpoint.id,
+        endpoint_id: updatedEndpoint.id,
       })
     }
 
@@ -63,13 +94,16 @@ export async function POST(request: NextRequest) {
       .from("endpoints")
       .insert({
         account_id: accountId,
-        agent_id,
+        agent_id: agent_id || null,
         hostname,
         os,
         os_version,
         agent_version,
+        ip_address: body.ip_address || null,
+        mac_address: body.mac_address || null,
         status: "online",
-        last_seen: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+        registered_at: new Date().toISOString(),
       })
       .select("id")
       .single()
