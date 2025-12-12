@@ -10,12 +10,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Decode token
+    // Decode token (tolerate whitespace/newlines in the provided base64 string)
     let accountId: string
     try {
-      const decoded = JSON.parse(Buffer.from(token, "base64").toString("utf-8"))
+      const cleaned = String(token).replace(/\s+/g, "")
+      const decodedStr = Buffer.from(cleaned, "base64").toString("utf-8")
+      const decoded = JSON.parse(decodedStr)
       accountId = decoded.accountId
-    } catch {
+    } catch (e) {
+      console.error("Invalid registration token decode error:", e)
       return NextResponse.json({ error: "Invalid token" }, { status: 400 })
     }
 

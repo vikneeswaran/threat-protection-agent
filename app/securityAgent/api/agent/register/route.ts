@@ -14,14 +14,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Decode the registration token
-    let tokenData: { accountId: string; accountName: string; timestamp: number }
-    try {
-      tokenData = JSON.parse(Buffer.from(token, "base64").toString("utf-8"))
-    } catch {
-      return NextResponse.json({ error: "Invalid registration token" }, { status: 400 })
+      let accountId: string
+      try {
+        const cleaned = String(token).replace(/\s+/g, "")
+        const decodedStr = Buffer.from(cleaned, "base64").toString("utf-8")
+        const decoded = JSON.parse(decodedStr)
+        accountId = decoded.accountId
+      } catch (e) {
+        console.error("Invalid registration token decode error:", e)
+        return NextResponse.json({ error: "Invalid token" }, { status: 400 })
     }
 
-    const { accountId } = tokenData
+    
 
     // Verify the account exists and is active
     const { data: account, error: accountError } = await supabaseAdmin
