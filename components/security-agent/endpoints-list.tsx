@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { Endpoint, UserRole } from "@/lib/types/database"
 import { formatDistanceToNow } from "date-fns"
-import { MoreHorizontal, Monitor, Eye, FileText, Trash2, RefreshCw, ShieldCheck, ShieldAlert } from "lucide-react"
+import { MoreHorizontal, Monitor, Eye, FileText, Trash2, RefreshCw, ShieldCheck, ShieldAlert, Download } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -194,6 +194,15 @@ export function EndpointsList({ endpoints, userRole }: EndpointsListProps) {
                         {canDelete && (
                           <>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href={`/securityAgent/api/agent/uninstall/download/${endpoint.os}?${endpoint.id ? `endpoint_id=${endpoint.id}` : endpoint.agent_id ? `agent_id=${endpoint.agent_id}` : ""}`}
+                                download
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download Uninstaller
+                              </Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
                               onClick={() => handleRemove(endpoint)}

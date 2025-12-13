@@ -1,0 +1,8 @@
+{
+  "api_base": "https://kuaminisystems.com/securityAgent/api/agent",
+  "registration_token": "<BASE64_TOKEN>",
+  "agent_id": "<GENERATED_AGENT_ID>",
+  "account_id": "<ACCOUNT_ID>",
+  "console_url": "https://kuaminisystems.com/securityAgent",
+  "heartbeat_interval": 60
+}

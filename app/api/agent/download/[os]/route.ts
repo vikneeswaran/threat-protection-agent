@@ -57,6 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 function generateMacOSScript(accountId: string, accountName: string, token: string, baseUrl: string): string {
+  const trayUrl = `${baseUrl}/tray/macos.zip`
   return `#!/bin/bash
 # KuaminiThreatProtectAgent Installer for macOS
 # Generated for account: ${accountName}
@@ -70,6 +71,7 @@ LOG_DIR="/var/log/kuamini"
 AGENT_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 API_BASE="${baseUrl}/api/agent"
 REGISTRATION_TOKEN="${token}"
+TRAY_URL="${trayUrl}"
 
 echo "=========================================="
 echo "KuaminiThreatProtectAgent Installer"
@@ -172,6 +174,39 @@ echo ""
 echo "[6/6] Starting agent service..."
 launchctl load /Library/LaunchDaemons/com.kuamini.agent.plist
 
+echo "[Optional] Installing tray (system menu icon)..."
+mkdir -p "$INSTALL_DIR/tray"
+if command -v unzip >/dev/null 2>&1; then
+  if curl -fSL "$TRAY_URL" -o "$INSTALL_DIR/tray/tray.zip"; then
+    unzip -o "$INSTALL_DIR/tray/tray.zip" -d "$INSTALL_DIR/tray" >/dev/null 2>&1 || true
+    chmod +x "$INSTALL_DIR/tray"/*.app/Contents/MacOS/* 2>/dev/null || true
+    cat > /Library/LaunchAgents/com.kuamini.agenttray.plist << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kuamini.agenttray</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$INSTALL_DIR/tray/KuaminiAgentTray.app/Contents/MacOS/KuaminiAgentTray</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+EOF
+    launchctl load /Library/LaunchAgents/com.kuamini.agenttray.plist 2>/dev/null || true
+    echo "Tray installed and loaded."
+  else
+    echo "Tray bundle not found at $TRAY_URL (skipping)."
+  fi
+else
+  echo "unzip not available; skipping tray install."
+fi
+
 echo ""
 echo "=========================================="
 echo "Installation Complete!"
@@ -187,6 +222,7 @@ echo "  Uninstall: sudo rm -rf /usr/local/kuamini /etc/kuamini /var/log/kuamini 
 }
 
 function generateLinuxScript(accountId: string, accountName: string, token: string, baseUrl: string): string {
+  const trayUrl = `${baseUrl}/tray/linux.zip`
   return `#!/bin/bash
 # KuaminiThreatProtectAgent Installer for Linux
 # Generated for account: ${accountName}
@@ -200,6 +236,7 @@ LOG_DIR="/var/log/kuamini"
 AGENT_ID=$(cat /proc/sys/kernel/random/uuid)
 API_BASE="${baseUrl}/api/agent"
 REGISTRATION_TOKEN="${token}"
+TRAY_URL="${trayUrl}"
 
 echo "=========================================="
 echo "KuaminiThreatProtectAgent Installer"
@@ -295,6 +332,28 @@ systemctl daemon-reload
 systemctl enable kuamini-agent
 systemctl start kuamini-agent
 
+echo "[Optional] Installing tray (system tray icon)..."
+mkdir -p "$INSTALL_DIR/tray"
+if command -v unzip >/dev/null 2>&1; then
+  if curl -fSL "$TRAY_URL" -o "$INSTALL_DIR/tray/tray.zip"; then
+    unzip -o "$INSTALL_DIR/tray/tray.zip" -d "$INSTALL_DIR/tray" >/dev/null 2>&1 || true
+    chmod +x "$INSTALL_DIR/tray"/* 2>/dev/null || true
+    # Autostart entry
+    cat > /etc/xdg/autostart/kuamini-agent-tray.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=Kuamini Agent Tray
+Exec=$INSTALL_DIR/tray/kuamini-agent-tray
+X-GNOME-Autostart-enabled=true
+EOF
+    echo "Tray installed; will start on user login."
+  else
+    echo "Tray bundle not found at $TRAY_URL (skipping)."
+  fi
+else
+  echo "unzip not available; skipping tray install."
+fi
+
 echo ""
 echo "=========================================="
 echo "Installation Complete!"
@@ -311,6 +370,7 @@ echo "  Uninstall: systemctl stop kuamini-agent && systemctl disable kuamini-age
 }
 
 function generateWindowsScript(accountId: string, accountName: string, token: string, baseUrl: string): string {
+  const trayUrl = `${baseUrl}/tray/windows.zip`
   return `# KuaminiThreatProtectAgent Installer for Windows
 # Generated for account: ${accountName}
 # Account ID: ${accountId}
@@ -323,6 +383,7 @@ $LOG_DIR = "C:\\ProgramData\\Kuamini\\Logs"
 $AGENT_ID = [guid]::NewGuid().ToString()
 $API_BASE = "${baseUrl}/api/agent"
 $REGISTRATION_TOKEN = "${token}"
+$TRAY_URL = "${trayUrl}"
 
 Write-Host "=========================================="
 Write-Host "KuaminiThreatProtectAgent Installer"
@@ -414,6 +475,26 @@ try {
 
 Write-Host "[6/6] Starting agent..."
 Start-ScheduledTask -TaskName "KuaminiThreatProtectAgent"
+
+Write-Host "[Optional] Installing tray (system tray icon)..."
+$trayDir = "$INSTALL_DIR\\tray"
+New-Item -ItemType Directory -Force -Path $trayDir | Out-Null
+try {
+  Invoke-WebRequest -Uri $TRAY_URL -OutFile "$trayDir\\tray.zip" -UseBasicParsing -ErrorAction Stop
+  Expand-Archive -Path "$trayDir\\tray.zip" -DestinationPath $trayDir -Force
+  $trayExe = Get-ChildItem -Path $trayDir -Filter "*.exe" -Recurse | Select-Object -First 1
+  if ($trayExe) {
+    $actionTray = New-ScheduledTaskAction -Execute $trayExe.FullName
+    $triggerTray = New-ScheduledTaskTrigger -AtLogOn
+    $principalTray = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    Register-ScheduledTask -TaskName "KuaminiAgentTray" -Action $actionTray -Trigger $triggerTray -Principal $principalTray -Force | Out-Null
+    Write-Host "Tray installed and scheduled."
+  } else {
+    Write-Host "Tray executable not found in archive; skipping."
+  }
+} catch {
+  Write-Host "Tray bundle not found at $TRAY_URL (skipping)."
+}
 
 Write-Host ""
 Write-Host "=========================================="
