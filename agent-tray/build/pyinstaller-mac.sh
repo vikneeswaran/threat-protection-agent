@@ -2,12 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt pyinstaller
-
-pyinstaller \
+# Use python3 instead of python
+python3 -m PyInstaller \
   --noconfirm \
   --onedir \
   --windowed \
