@@ -83,6 +83,7 @@ export interface Endpoint {
   os: EndpointOS
   os_version: string | null
   agent_version: string | null
+  agent_id: string | null
   ip_address: string | null
   mac_address: string | null
   status: EndpointStatus

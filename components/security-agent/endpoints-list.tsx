@@ -15,6 +15,8 @@ import type { Endpoint, UserRole } from "@/lib/types/database"
 import { formatDistanceToNow } from "date-fns"
 import { MoreHorizontal, Monitor, Eye, FileText, Trash2, RefreshCw, ShieldCheck, ShieldAlert } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 interface EndpointWithThreats extends Endpoint {
   activeThreats: number
@@ -40,6 +42,36 @@ const osIcons: Record<string, string> = {
 export function EndpointsList({ endpoints, userRole }: EndpointsListProps) {
   const canManage = ["super_admin", "admin", "operator"].includes(userRole)
   const canDelete = ["super_admin", "admin"].includes(userRole)
+  const router = useRouter()
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const handleRemove = async (endpoint: EndpointWithThreats) => {
+    if (removingId) return
+    const confirmed = window.confirm(`Uninstall and remove ${endpoint.hostname}?`)
+    if (!confirmed) return
+    setRemovingId(endpoint.id)
+    try {
+      const res = await fetch("/securityAgent/api/agent/uninstall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint_id: endpoint.id, agent_id: endpoint.agent_id, os: endpoint.os }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to uninstall endpoint")
+      }
+      const commands = Array.isArray(data?.uninstall?.commands) ? data.uninstall.commands.join("\n") : ""
+      if (commands) {
+        alert(`Run these commands on the endpoint to finish cleanup:\n\n${commands}`)
+      }
+      router.refresh()
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : "Failed to uninstall endpoint")
+    } finally {
+      setRemovingId(null)
+    }
+  }
 
   if (endpoints.length === 0) {
     return (
@@ -162,9 +194,13 @@ export function EndpointsList({ endpoints, userRole }: EndpointsListProps) {
                         {canDelete && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleRemove(endpoint)}
+                              disabled={removingId === endpoint.id}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Remove Endpoint
+                              {removingId === endpoint.id ? "Removing..." : "Remove Endpoint"}
                             </DropdownMenuItem>
                           </>
                         )}
