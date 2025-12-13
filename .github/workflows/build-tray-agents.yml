@@ -55,7 +55,12 @@ jobs:
         run: |
           cd agent-tray/build
           powershell -File .\pyinstaller-win.ps1
-          powershell -File .\zip-win.ps1
+          
+      - name: Zip Windows bundle
+        run: |
+          cd agent-tray/dist
+          Compress-Archive -Path "KuaminiAgentTray" -DestinationPath "windows.zip" -Force
+        shell: pwsh
       
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
