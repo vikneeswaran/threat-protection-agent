@@ -85,7 +85,7 @@ export default function RegisterPage() {
                   description:
                     "An account already exists for this email — your new organization has been attached.",
                   action: (
-                    <ToastAction asChild>
+                    <ToastAction altText="Sign in" asChild>
                       <a href="/securityAgent/auth/login">Sign in</a>
                     </ToastAction>
                   ),

@@ -12,12 +12,28 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient()
 
-    // Find the existing auth user by email
-    const { data: userData, error: userErr } = await admin.auth.admin.getUserByEmail(email)
+    // Find the existing auth user by email (SDK has no getUserByEmail helper)
+    const normalizedEmail = String(email).toLowerCase()
+    const perPage = 200
+    let page = 1
+    let userData: { id: string; email?: string | null } | null = null
 
-    if (userErr) {
-      console.error("admin.getUserByEmail error:", userErr)
-      return NextResponse.json({ message: "Failed to lookup user by email" }, { status: 500 })
+    while (true) {
+      const { data: pageData, error: userErr } = await admin.auth.admin.listUsers({ page, perPage })
+
+      if (userErr) {
+        console.error("admin.listUsers error:", userErr)
+        return NextResponse.json({ message: "Failed to lookup user by email" }, { status: 500 })
+      }
+
+      const match = pageData?.users?.find((u) => u.email?.toLowerCase?.() === normalizedEmail)
+      if (match) {
+        userData = match
+        break
+      }
+
+      if (!pageData || pageData.users.length < perPage) break
+      page += 1
     }
 
     if (!userData) {
