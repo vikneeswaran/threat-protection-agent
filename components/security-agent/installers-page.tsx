@@ -229,7 +229,7 @@ export function InstallersPage({ profile, account }: InstallersPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Apple className="h-5 w-5" />
@@ -239,18 +239,6 @@ export function InstallersPage({ profile, account }: InstallersPageProps) {
                 <a href="/tray/macos.zip" download>
                   <Download className="h-4 w-4 mr-2" />
                   Download macos.zip
-                </a>
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Terminal className="h-5 w-5" />
-                <span className="font-medium">Linux Tray</span>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/tray/linux.zip" download>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download linux.zip
                 </a>
               </Button>
             </div>
@@ -268,8 +256,8 @@ export function InstallersPage({ profile, account }: InstallersPageProps) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-4">
-            Note: The installer scripts will automatically download and install the tray agent if available. These
-            downloads are for advanced users or custom deployment scenarios.
+            Note: macOS and Windows tray bundles are provided here. Linux installs can continue using the script-only
+            flow; no native tray bundle is required for Linux.
           </p>
         </CardContent>
       </Card>
