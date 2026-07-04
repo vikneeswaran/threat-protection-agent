@@ -18,8 +18,3 @@ Standalone repository for Kuamini endpoint agent development and packaging.
 - Windows: `agent-tray/build/build-windows-msi.ps1`
 - macOS: `agent-tray/build/pkgbuild-mac.sh`
 - Linux: `pyinstaller main.py --onedir --name=KuaminiSecurityClient`
-
-## Next steps
-1. Create GitHub repo: `threat-protection-agent`
-2. Add remote and push this project.
-3. Update server repo API workflows to consume agent artifacts from this repository.

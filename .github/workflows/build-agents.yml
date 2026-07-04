@@ -6,10 +6,7 @@ on:
       - main
     paths:
       - 'agent-tray/**'
-      - 'types/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'tsconfig.json'
+      - 'public/tray/**'
       - '.github/workflows/build-agents.yml'
   workflow_dispatch:
 
