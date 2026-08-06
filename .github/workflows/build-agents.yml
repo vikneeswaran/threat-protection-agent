@@ -29,14 +29,18 @@ jobs:
       - name: Install dependencies
         run: |
           cd agent-tray
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+          python3 -m pip install pyinstaller
+
+      - name: Build macOS app bundle (PyInstaller)
+        run: |
+          cd agent-tray
+          python3 -m PyInstaller KuaminiSecurityClient-mac.spec
 
       - name: Build macOS PKG installer
         run: |
           cd agent-tray
-          python -m PyInstaller KuaminiSecurityClient-mac.spec
           bash build/pkgbuild-mac.sh
 
       - name: Upload macOS artifact
