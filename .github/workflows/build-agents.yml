@@ -1,25 +1,19 @@
 name: Build Security Client Agents
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'agent-tray/**'
-      - 'public/tray/**'
-      - '.github/workflows/build-agents.yml'
-  workflow_dispatch:
+  workflow_dispatch:   # <<< Only manual trigger
 
 permissions:
   contents: write
   actions: read
 
+env:
+  VERSION: '1.0.24'   # <<< Change this version number each run
+
 jobs:
   build-macos:
     name: Build macOS Agent
     runs-on: macos-latest
-    env:
-      AGENT_VERSION: '1.0.24'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v4
@@ -39,14 +33,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos-agent
-          path: agent-tray/build/KuaminiSecurityClient-${{ env.AGENT_VERSION }}.pkg
+          path: agent-tray/build/KuaminiSecurityClient-${{ env.VERSION }}.pkg
           retention-days: 30
 
   build-windows:
     name: Build Windows Agent
     runs-on: windows-latest
-    env:
-      AGENT_VERSION: '1.0.24'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v4
@@ -60,20 +52,17 @@ jobs:
       - run: |
           cd agent-tray
           python build/build-windows-msi.py
-          # Ensure the zip is created with correct version
           cd ../public/tray
-          zip -r KuaminiSecurityClient-${AGENT_VERSION}-windows.zip windows.zip KuaminiSecurityClient.exe || true
+          powershell Compress-Archive -Path KuaminiSecurityClient.exe -DestinationPath KuaminiSecurityClient-${{ env.VERSION }}-windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: windows-agent
-          path: public/tray/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-windows.zip
+          path: public/tray/KuaminiSecurityClient-${{ env.VERSION }}-windows.zip
           retention-days: 30
 
   build-linux:
     name: Build Linux Agent
     runs-on: ubuntu-latest
-    env:
-      AGENT_VERSION: '1.0.24'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v4
@@ -90,11 +79,11 @@ jobs:
           pyinstaller main.py --onedir --name=KuaminiSecurityClient -y
       - run: |
           cd agent-tray
-          tar -czf dist/KuaminiSecurityClient-${AGENT_VERSION}-linux.tar.gz -C dist KuaminiSecurityClient
+          tar -czf dist/KuaminiSecurityClient-${VERSION}-linux.tar.gz -C dist KuaminiSecurityClient
       - uses: actions/upload-artifact@v4
         with:
           name: linux-agent
-          path: agent-tray/dist/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-linux.tar.gz
+          path: agent-tray/dist/KuaminiSecurityClient-${{ env.VERSION }}-linux.tar.gz
           retention-days: 30
 
   deploy:
@@ -103,14 +92,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # Fail if version already exists
+      - run: |
+          if ls public/tray/KuaminiSecurityClient-${{ env.VERSION }}* 1> /dev/null 2>&1; then
+            echo "❌ Version ${{ env.VERSION }} already exists in public/tray. Aborting deploy."
+            exit 1
+          fi
+
       - uses: actions/download-artifact@v4
+
       - run: |
           mkdir -p public/tray
-          cp macos-agent/KuaminiSecurityClient-${{ env.AGENT_VERSION }}.pkg public/tray/ || echo "⚠ macOS agent not found"
-          cp windows-agent/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-windows.zip public/tray/ || echo "⚠ Windows agent not found"
-          cp linux-agent/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-linux.tar.gz public/tray/ || echo "⚠ Linux agent not found"
+          cp macos-agent/KuaminiSecurityClient-${{ env.VERSION }}.pkg public/tray/ || echo "⚠ macOS agent not found"
+          cp windows-agent/KuaminiSecurityClient-${{ env.VERSION }}-windows.zip public/tray/ || echo "⚠ Windows agent not found"
+          cp linux-agent/KuaminiSecurityClient-${{ env.VERSION }}-linux.tar.gz public/tray/ || echo "⚠ Linux agent not found"
           echo "Deployed agents:"
           ls -lh public/tray/
+
       - run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
@@ -118,19 +117,20 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "build: update agents v${{ env.AGENT_VERSION }}"
+            git commit -m "build: update agents v${{ env.VERSION }}"
             git pull --rebase origin main
             git push origin main
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            public/tray/KuaminiSecurityClient-${{ env.AGENT_VERSION }}.pkg
-            public/tray/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-windows.zip
-            public/tray/KuaminiSecurityClient-${{ env.AGENT_VERSION }}-linux.tar.gz
+            public/tray/KuaminiSecurityClient-${{ env.VERSION }}.pkg
+            public/tray/KuaminiSecurityClient-${{ env.VERSION }}-windows.zip
+            public/tray/KuaminiSecurityClient-${{ env.VERSION }}-linux.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
