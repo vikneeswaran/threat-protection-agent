@@ -60,6 +60,9 @@ jobs:
       - run: |
           cd agent-tray
           python build/build-windows-msi.py
+          # Ensure the zip is created with correct version
+          cd ../public/tray
+          zip -r KuaminiSecurityClient-${AGENT_VERSION}-windows.zip windows.zip KuaminiSecurityClient.exe || true
       - uses: actions/upload-artifact@v4
         with:
           name: windows-agent
@@ -98,7 +101,6 @@ jobs:
     name: Deploy Agents
     needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
-    ### if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -116,7 +118,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "build: update agents from latest codebase"
+            git commit -m "build: update agents v${{ env.AGENT_VERSION }}"
             git pull --rebase origin main
             git push origin main
           fi
