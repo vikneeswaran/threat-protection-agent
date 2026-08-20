@@ -97,7 +97,7 @@ except ImportError as e:
     sys.exit(1)
 
 DEFAULT_HEARTBEAT_INTERVAL = 60
-AGENT_VERSION = os.environ.get("AGENT_VERSION", "1.0.6")
+AGENT_VERSION = os.environ.get("AGENT_VERSION", "1.0.24")
 PUBLIC_IP_CACHE_TTL_SECONDS = 600
 _public_ip_cache_value: str | None = None
 _public_ip_cache_ts: float = 0.0
@@ -256,7 +256,7 @@ def verify_installation():
                             break
             
             default_config = {
-                "api_base": "https://kuaminisystems.com/api/agent",
+                "api_base": "https://kuaminisystems.com/api/securityagent/agent",
                 "console_url": "https://kuaminisystems.com/securityAgent",
                 "auto_register": True,
                 "heartbeat_interval": 60
@@ -526,7 +526,7 @@ def load_config():
     token_from_file = _discover_token_from_install_paths()
     
     cfg = {
-        "api_base": os.environ.get("API_BASE") or "https://kuaminisystems.com/api/agent",
+        "api_base": os.environ.get("API_BASE") or "https://kuaminisystems.com/api/securityagent/agent",
         "registration_token": token_from_file or os.environ.get("REGISTRATION_TOKEN"),
         "agent_id": os.environ.get("AGENT_ID") or str(uuid.uuid4()),
         "account_id": os.environ.get("ACCOUNT_ID"),
@@ -787,7 +787,7 @@ def register(config):
                 logging.warning("Failed to persist account_id before register: %s", e)
 
     # Check if we have placeholder token (not a real token)
-    token = config.get("registration_token", "").strip()
+    token = (config.get("registration_token") or "").strip()
     if token == "placeholder-token":
         logging.warning("Registration skipped: placeholder token detected - this indicates the registration.token file was not properly copied during installation")
         return False, "Placeholder token detected - installation may be incomplete"
@@ -842,7 +842,7 @@ def register(config):
         },
     }
     try:
-        api_url = config.get('api_base') or "https://kuaminisystems.com/api/agent"
+        api_url = config.get('api_base') or "https://kuaminisystems.com/api/securityagent/agent"
         register_url = f"{api_url}/register"
         logging.info("Attempting registration to: %s", register_url)
         logging.debug("Registration payload: %s", {k: v if k != 'token' else '***' for k, v in payload.items()})
@@ -938,12 +938,12 @@ def heartbeat(config):
                 error_msg = body.get("error", resp.text)
             except Exception:
                 error_msg = resp.text
-            logging.error("✗ Heartbeat HTTP %s: %s", resp.status_code, error_msg)
+            logging.error("? Heartbeat HTTP %s: %s", resp.status_code, error_msg)
             resp.raise_for_status()
-        logging.info("✓ Heartbeat successful (HTTP %s)", resp.status_code)
+        logging.info("? Heartbeat successful (HTTP %s)", resp.status_code)
         return True, resp.json()
     except Exception as exc:
-        logging.exception("✗ Heartbeat failed: %s", exc)
+        logging.exception("? Heartbeat failed: %s", exc)
 
         # If endpoint not found, attempt re-registration once and retry heartbeat
         try:
@@ -983,7 +983,7 @@ def check_pending_scan_commands(config):
         return None, "Missing agent_id or account_id"
     
     try:
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/agent")
+        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
         url = f"{api_url}/scan-commands?agent_id={agent_id}&account_id={account_id}"
         logging.debug("Checking for pending scan commands")
         
@@ -1025,7 +1025,7 @@ def report_scan_command_result(config, command_id: str, scan_id: str, scan_type:
             "error_message": error_message,
         }
         
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/agent")
+        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
         url = f"{api_url}/scan-commands-result"
         logging.info(f"Reporting scan command result: command_id={command_id}, threats={total_threats}")
         
@@ -1034,7 +1034,7 @@ def report_scan_command_result(config, command_id: str, scan_id: str, scan_type:
             logging.error(f"Scan command result report failed HTTP {resp.status_code}")
             return False, f"HTTP {resp.status_code}"
         
-        logging.info(f"✓ Scan command result reported successfully")
+        logging.info(f"? Scan command result reported successfully")
         return True, "Success"
     except Exception as e:
         logging.error(f"Error reporting scan command result: {e}")
@@ -1050,7 +1050,7 @@ def check_pending_threat_action_commands(config):
         return None, "Missing agent_id or account_id"
 
     try:
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/agent")
+        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
         url = f"{api_url}/threat-action-commands?agent_id={agent_id}&account_id={account_id}"
         logging.debug("Checking for pending threat action commands")
 
@@ -1092,7 +1092,7 @@ def report_threat_action_command_result(
             "result_details": result_details or {},
         }
 
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/agent")
+        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
         url = f"{api_url}/threat-action-commands-result"
 
         resp = requests.post(url, json=payload, timeout=15)
@@ -1100,7 +1100,7 @@ def report_threat_action_command_result(
             logging.error("Threat action command result report failed HTTP %s", resp.status_code)
             return False, f"HTTP {resp.status_code}"
 
-        logging.info("✓ Threat action command result reported: command_id=%s status=%s", command_id, status)
+        logging.info("? Threat action command result reported: command_id=%s status=%s", command_id, status)
         return True, "Success"
     except Exception as e:
         logging.error("Error reporting threat action command result: %s", e)
@@ -1113,7 +1113,7 @@ def initialize_threat_detection(config: dict, log_callback=None) -> dict:
 
         engine = ThreatDetectionEngine(log_callback=log_callback)
         reporter = ThreatReporter(
-            api_base_url=config.get("api_base", "https://kuaminisystems.com/api/agent"),
+            api_base_url=config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent"),
             agent_id=config.get("agent_id"),
             account_id=config.get("account_id"),
             log_callback=log_callback,
@@ -1161,9 +1161,9 @@ def tray_main():
     # Create icon with error handling
     try:
         icon = pystray.Icon("KuaminiThreatProtectAgent")
-        logging.info("✓ Tray icon object created successfully")
+        logging.info("? Tray icon object created successfully")
     except Exception as e:
-        logging.error("✗ Failed to create pystray icon: %s", e, exc_info=True)
+        logging.error("? Failed to create pystray icon: %s", e, exc_info=True)
         logging.warning("Falling back to background-only mode (no systray)")
         # Fallback to background-only mode
         background_agent_mode(config)
@@ -1463,10 +1463,10 @@ def tray_main():
             endpoint_id=config.get("endpoint_id"),
         )
         if not results:
-            logging.info(f"✓ Scan completed: 0 threats to process")
+            logging.info(f"? Scan completed: 0 threats to process")
             return ok
 
-        logging.info(f"✓ Reported {len([r for r in results if r.get('success')])} threats successfully")
+        logging.info(f"? Reported {len([r for r in results if r.get('success')])} threats successfully")
 
         for idx, result in enumerate(results):
             if not result.get("success"):
@@ -1508,7 +1508,7 @@ def tray_main():
                 pending_command, cmd_error = check_pending_scan_commands(config)
                 
                 if pending_command:
-                    logging.info(f"🔍 Executing remote scan command: {pending_command.get('scan_type')}")
+                    logging.info(f"?? Executing remote scan command: {pending_command.get('scan_type')}")
                     set_status(f"Remote scan: {pending_command.get('scan_type')}", (241, 196, 15))
                     
                     # Execute the requested scan type
@@ -1530,7 +1530,7 @@ def tray_main():
                 # Report results
                 if report.total_threats > 0:
                     notify("Threat detected", f"{report.total_threats} threats found")
-                    logging.warning(f"⚠️  {report.total_threats} threats detected - {report.critical_count} critical, {report.high_count} high")
+                    logging.warning(f"??  {report.total_threats} threats detected - {report.critical_count} critical, {report.high_count} high")
                 _report_and_handle_actions(report)
                 
                 # If this was a remote command, report its completion
@@ -1550,9 +1550,9 @@ def tray_main():
                         status="completed",
                     )
                     if success:
-                        logging.info(f"✓ Remote scan command completed and reported")
+                        logging.info(f"? Remote scan command completed and reported")
                     else:
-                        logging.warning(f"⚠️  Failed to report remote scan completion: {msg}")
+                        logging.warning(f"??  Failed to report remote scan completion: {msg}")
                 
                 # Determine wait interval
                 if command_id:
@@ -1579,14 +1579,14 @@ def tray_main():
                 report = threat_system["engine"].realtime_scan()
                 
                 if report and report.total_threats > 0:
-                    logging.warning(f"🔴 Real-time alert: {report.total_threats} threats detected")
+                    logging.warning(f"?? Real-time alert: {report.total_threats} threats detected")
                     
                     # Report critical and high severity threats immediately
                     critical_threats = [t for t in (report.threats or []) if t.get("severity") in ["critical", "high"]]
                     if critical_threats:
                         threat_names = ", ".join([t.get("threat_name", "Unknown") for t in critical_threats[:3]])
-                        notify("⚠️ Critical Threat Detected", f"{len(critical_threats)} critical/high threats: {threat_names}")
-                        logging.error(f"🚨 CRITICAL THREATS DETECTED: {threat_names}")
+                        notify("?? Critical Threat Detected", f"{len(critical_threats)} critical/high threats: {threat_names}")
+                        logging.error(f"?? CRITICAL THREATS DETECTED: {threat_names}")
                     
                     # Report all threats
                     _report_and_handle_actions(report)
@@ -1622,14 +1622,14 @@ def tray_main():
     def build_menu():
         """Build menu dynamically so status updates in real time."""
         items = [
-            pystray.MenuItem(lambda item: f"● Agent: {config.get('agent_id', 'unknown')[:8]}...", None, enabled=False),
-            pystray.MenuItem(lambda item: f"◉ Status: {status.get('text', 'Unknown')}", None, enabled=False),
-            pystray.MenuItem(lambda item: f"⟳ Version: {update_state.get('current_version')}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"? Agent: {config.get('agent_id', 'unknown')[:8]}...", None, enabled=False),
+            pystray.MenuItem(lambda item: f"? Status: {status.get('text', 'Unknown')}", None, enabled=False),
+            pystray.MenuItem(lambda item: f"? Version: {update_state.get('current_version')}", None, enabled=False),
             pystray.MenuItem(
                 lambda item: (
-                    f"⬆ Update: {update_state.get('latest_version')} available"
+                    f"? Update: {update_state.get('latest_version')} available"
                     if update_state.get("available") and update_state.get("latest_version")
-                    else "⬆ Update: Up to date"
+                    else "? Update: Up to date"
                 ),
                 None,
                 enabled=False,
@@ -1665,22 +1665,22 @@ def tray_main():
         logging.info("Auto-registration enabled, attempting registration")
         ok, res = register(config)
         if ok:
-            logging.info("✓ Auto-registration successful: %s", res)
+            logging.info("? Auto-registration successful: %s", res)
             set_status("Registered, preparing heartbeat")
             
             # Trigger initial scan after successful registration
             if threat_system.get("enabled"):
-                logging.info("🔍 Triggering initial scan after registration...")
+                logging.info("?? Triggering initial scan after registration...")
                 def _run_initial_scan():
                     try:
                         set_status("Initial security scan", (241, 196, 15))
                         report = threat_system["engine"].quick_scan()
-                        logging.info(f"✓ Initial scan completed: {report.total_threats} threats found")
+                        logging.info(f"? Initial scan completed: {report.total_threats} threats found")
                         if report.total_threats > 0:
-                            logging.warning(f"⚠️  Initial scan detected {report.total_threats} threats")
+                            logging.warning(f"??  Initial scan detected {report.total_threats} threats")
                             notify("Threats detected", f"{report.total_threats} threats found in initial scan")
                         else:
-                            logging.info("✓ Initial scan clean - no threats detected")
+                            logging.info("? Initial scan clean - no threats detected")
                         _report_and_handle_actions(report)
                         set_status("Online", (46, 204, 113))
                     except Exception as e:
@@ -1690,7 +1690,7 @@ def tray_main():
                 # Run initial scan in background thread
                 threading.Thread(target=_run_initial_scan, daemon=True).start()
         else:
-            logging.warning("✗ Auto-registration failed: %s", res)
+            logging.warning("? Auto-registration failed: %s", res)
             set_status("Registration failed, retrying on heartbeat")
     
     threading.Thread(target=heartbeat_loop, daemon=True).start()
@@ -1708,7 +1708,7 @@ def tray_main():
         logging.info("Starting tray icon message loop...")
         icon.run()
     except Exception as e:
-        logging.warning("✗ Tray icon failed: %s. Continuing in background mode...", e, exc_info=True)
+        logging.warning("? Tray icon failed: %s. Continuing in background mode...", e, exc_info=True)
         # Continue running background operations even if icon fails
         try:
             while not stop_event.is_set():
@@ -1731,9 +1731,9 @@ def background_agent_mode(config):
         logging.info("Attempting initial registration...")
         ok, res = register(config)
         if ok:
-            logging.info("✓ Initial registration successful: %s", res)
+            logging.info("? Initial registration successful: %s", res)
         else:
-            logging.warning("⚠ Initial registration failed: %s", res)
+            logging.warning("? Initial registration failed: %s", res)
         
         # Heartbeat loop
         while not stop_event.is_set():
@@ -1751,9 +1751,9 @@ def background_agent_mode(config):
     hb_thread = threading.Thread(target=heartbeat_loop, daemon=False)
     hb_thread.start()
     
-    logging.info("✓ Agent started successfully (background mode)")
-    logging.info("✓ Agent ID: %s", config.get('agent_id', 'unknown'))
-    logging.info("✓ API Base: %s", config.get('api_base'))
+    logging.info("? Agent started successfully (background mode)")
+    logging.info("? Agent ID: %s", config.get('agent_id', 'unknown'))
+    logging.info("? API Base: %s", config.get('api_base'))
     
     # Keep the main thread alive
     try:
@@ -1850,3 +1850,4 @@ if __name__ == "__main__":
             print(f"[ERROR] {msg}", file=sys.stderr)
             log_to_emergency_file(msg)
             sys.stderr.flush()
+

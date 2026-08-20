@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:\\Users\\vigne\\Documents\\Projects\\threat-protection-agent\\agent-tray\\main.py'],
+    ['../main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\vigne\\Documents\\Projects\\threat-protection-agent\\agent-tray\\config.json', '.')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version='C:/Users/threat-protectionAgent/threat-protection-agent/agent-tray/version_info.txt',
 )
 coll = COLLECT(
     exe,
