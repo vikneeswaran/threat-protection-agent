@@ -62,23 +62,23 @@ Target Version: {version}
         print(f"  Removed: {dist_dir}")
     
     # Step 2: Run PyInstaller
-    pyinstaller_cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--name", "KuaminiSecurityClient",
-        "--onedir",
-        "--windowed",
-        "--distpath", str(agent_dir / "dist"),
-        "--workpath", str(agent_dir / "build" / "pyinstaller"),
-        "--specpath", str(script_dir),
+    version_file = agent_dir / "version_info.txt"
 
-        # Include tray status icons in the packaged application
-        "--add-data", str(agent_dir / "icon-green.png") + ";.",
-        "--add-data", str(agent_dir / "icon-yellow.png") + ";.",
-        "--add-data", str(agent_dir / "icon-red.png") + ";.",
+if not version_file.exists():
+    print(f"\n[ERROR] Version file not found at {version_file}")
+    sys.exit(1)
 
-        str(agent_dir / "main.py")
-    ]
-
+pyinstaller_cmd = [
+    "python", "-m", "PyInstaller",
+    "--name", "KuaminiSecurityClient",
+    "--onedir",
+    "--windowed",
+    "--version-file", str(version_file),
+    "--distpath", str(agent_dir / "dist"),
+    "--workpath", str(agent_dir / "build" / "pyinstaller"),
+    "--specpath", str(script_dir),
+    str(agent_dir / "main.py")
+]
     run_command(pyinstaller_cmd, "PyInstaller (freeze Python code)")
     
     exe_path = agent_dir / "dist" / "KuaminiSecurityClient" / "KuaminiSecurityClient.exe"

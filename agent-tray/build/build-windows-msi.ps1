@@ -1,7 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$RegistrationToken = "placeholder-token",
-
+[string]$RegistrationToken = "",
     [Parameter(Mandatory = $false)]
     [string]$AccountId = "",
 
@@ -24,6 +23,7 @@ $configTemp = Join-Path $scriptDir "config-temp.json"
 $internalWxs = Join-Path $scriptDir "InternalFiles.wxs"
 $wxsMain = Join-Path $scriptDir "KuaminiSecurityClient.wxs"
 $exePath = Join-Path $distDir "KuaminiSecurityClient.exe"
+$registrationTokenFile = Join-Path $distDir "registration.token"
 $registrationMetaFile = Join-Path $distDir "registration.json"
 $heatPath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\heat.exe"
 $candlePath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe"
@@ -112,6 +112,31 @@ if (-not (Test-Path $lightPath)) {
     Write-Host "ERROR: Light.exe not found at $lightPath" -ForegroundColor Red
     exit 1
 }
+
+# Prepare registration token for MSI
+if ([string]::IsNullOrWhiteSpace($RegistrationToken)) {
+    Write-Host "ERROR: RegistrationToken was not provided." -ForegroundColor Red
+    exit 1
+}
+
+if ($RegistrationToken -eq "placeholder-token") {
+    Write-Host "ERROR: Placeholder registration token is not allowed." -ForegroundColor Red
+    exit 1
+}
+
+if ($RegistrationToken.Length -ne 128) {
+    Write-Host "ERROR: Registration token must be 128 characters. Current length: $($RegistrationToken.Length)" -ForegroundColor Red
+    exit 1
+}
+
+Set-Content `
+    -Path $registrationTokenFile `
+    -Value $RegistrationToken `
+    -Encoding UTF8 `
+    -NoNewline
+
+Write-Host "Registration token prepared successfully."
+Write-Host "Token length: $($RegistrationToken.Length)"
 
 # The config.json template is only used for reference
 # The actual MSI will not include config.json - it will be created at runtime by the app

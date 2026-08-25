@@ -4,7 +4,11 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('icon-green.png', '.'),
+        ('icon-yellow.png', '.'),
+        ('icon-red.png', '.'),
+    ],
     hiddenimports=[
         'pystray',
         'psutil',
@@ -30,6 +34,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -48,7 +53,9 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version='version_info.txt',
 )
+
 coll = COLLECT(
     exe,
     a.binaries,

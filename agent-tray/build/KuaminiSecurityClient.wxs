@@ -35,9 +35,15 @@
     <!-- Main executable -->
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="MainExecutable" Guid="87654321-1234-1234-1234-123456789012" Win64="yes">
-        <File Id="KuaminiSecurityClient_exe" Name="KuaminiSecurityClient.exe"
-              Source="$(var.SourceDir)\KuaminiSecurityClient.exe" KeyPath="yes" />
-      </Component>
+    <File Id="KuaminiSecurityClient_exe"
+          Name="KuaminiSecurityClient.exe"
+          Source="$(var.SourceDir)\KuaminiSecurityClient.exe"
+          KeyPath="yes" />
+
+    <File Id="RegistrationTokenFile"
+          Name="registration.token"
+          Source="$(var.SourceDir)\registration.token" />
+</Component>
       <Component Id="RegistryAutoStart" Guid="99999999-8888-7777-6666-555555555555" Win64="yes">
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
                        Name="KuaminiSecurityClient"
@@ -48,12 +54,12 @@
     </DirectoryRef>
 
     <!-- Copy or create registration token from source directory, search common locations, or use REGISTRATIONTOKEN property -->
-    <CustomAction Id="CopyRegistrationToken"
-                  Directory="SystemFolder"
-                  Execute="immediate"
-                  ExeCommand="cmd.exe /c setlocal enabledelayedexpansion &amp;&amp; (if not &quot;[REGISTRATIONTOKEN]&quot;==&quot;&quot; (echo [REGISTRATIONTOKEN] > &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done)) &amp;&amp; (if exist &quot;[SourceDir]registration.token&quot; copy /Y &quot;[SourceDir]registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done) &amp;&amp; (if exist &quot;registration.token&quot; copy /Y &quot;registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done) &amp;&amp; (if exist &quot;%USERPROFILE%\Downloads\registration.token&quot; copy /Y &quot;%USERPROFILE%\Downloads\registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done) &amp;&amp; (for /D %%D in (&quot;%USERPROFILE%\Downloads\KuaminiSecurityClient-*&quot;) do @if exist &quot;%%D\registration.token&quot; copy /Y &quot;%%D\registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done) &amp;&amp; (if exist &quot;%USERPROFILE%\Desktop\registration.token&quot; copy /Y &quot;%USERPROFILE%\Desktop\registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done) &amp;&amp; (for /D %%D in (&quot;%USERPROFILE%\Desktop\KuaminiSecurityClient-*&quot;) do @if exist &quot;%%D\registration.token&quot; copy /Y &quot;%%D\registration.token&quot; &quot;[INSTALLFOLDER]registration.token&quot; &amp;&amp; goto :done)
-:done endlocal"
-                  Return="ignore" />
+    <!-- <CustomAction
+    Id="CopyRegistrationToken"
+    Directory="SystemFolder"
+    Execute="immediate"
+    ExeCommand='cmd.exe /c copy /Y "[SourceDir]registration.token" "[INSTALLFOLDER]registration.token"'
+    Return="ignore" /> -->
 
     <!-- Start the agent after installation -->
     <CustomAction Id="StartAgent"
@@ -63,9 +69,8 @@
                   Return="ignore" />
 
     <InstallExecuteSequence>
-      <Custom Action="CopyRegistrationToken" After="StartServices" />
-      <Custom Action="StartAgent" After="CopyRegistrationToken" />
-    </InstallExecuteSequence>
+  <Custom Action="StartAgent" After="InstallFiles" />
+</InstallExecuteSequence>
 
     <!-- UI -->
     <UIRef Id="WixUI_Minimal" />
