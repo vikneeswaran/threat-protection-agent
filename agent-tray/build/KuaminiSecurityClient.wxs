@@ -40,9 +40,6 @@
           Source="$(var.SourceDir)\KuaminiSecurityClient.exe"
           KeyPath="yes" />
 
-    <File Id="RegistrationTokenFile"
-          Name="registration.token"
-          Source="$(var.SourceDir)\registration.token" />
 </Component>
       <Component Id="RegistryAutoStart" Guid="99999999-8888-7777-6666-555555555555" Win64="yes">
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
@@ -53,13 +50,6 @@
       </Component>
     </DirectoryRef>
 
-    <!-- Copy or create registration token from source directory, search common locations, or use REGISTRATIONTOKEN property -->
-    <!-- <CustomAction
-    Id="CopyRegistrationToken"
-    Directory="SystemFolder"
-    Execute="immediate"
-    ExeCommand='cmd.exe /c copy /Y "[SourceDir]registration.token" "[INSTALLFOLDER]registration.token"'
-    Return="ignore" /> -->
 
     <!-- Start the agent after installation -->
     <CustomAction Id="StartAgent"
