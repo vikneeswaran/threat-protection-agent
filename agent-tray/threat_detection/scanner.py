@@ -1,4 +1,4 @@
-"""
+﻿"""
 File System Scanner - Detects threats via signature matching and heuristics
 Scans files for known malware patterns, suspicious extensions, and behaviors
 """
@@ -119,7 +119,7 @@ class FileScanner:
             return self._policy_cache[file_hash]
         try:
             # TODO: Replace with dynamic base URL if needed
-            api_base_url = os.environ.get("KUAMINI_API_BASE_URL", "http://localhost:3000/api/console")
+            api_base_url = os.environ.get("KUAMINI_API_BASE_URL", "https://kuaminisystems.com/api/console")
             url = f"{api_base_url}/threat-action-policies?file_hash={file_hash}"
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
@@ -387,3 +387,4 @@ class FileScanner:
             "threats_found": len(self.threats_found),
             "threats": [t.to_dict() for t in self.threats_found]
         }
+
