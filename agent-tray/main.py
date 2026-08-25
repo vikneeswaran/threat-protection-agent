@@ -628,7 +628,7 @@ def get_network_info() -> Tuple[str | None, str | None]:
         sock.connect(("8.8.8.8", 80))
         candidate = sock.getsockname()[0]
         sock.close()
-        # Discard if loopback or link-local — the routing trick gave a bad result
+        # Discard if loopback or link-local - the routing trick gave a bad result
         if candidate and not candidate.startswith("127.") and not candidate.startswith("169.254."):
             primary_ip = candidate
     except Exception:
@@ -826,20 +826,11 @@ def register(config):
     public_ip = get_public_ip()
 
     payload = {
-        "token": config.get("registration_token"),
-        "hostname": os.uname().nodename if hasattr(os, "uname") else os.environ.get("COMPUTERNAME") or "unknown",
-        "os": "macos" if sys.platform == "darwin" else ("windows" if os.name == "nt" else "linux"),
-        "os_version": _os_version(),
-        "agent_version": AGENT_VERSION,
-        "agent_id": config.get("agent_id"),
-        "ip_address": local_ip,
-        "public_ip": public_ip,
-        "mac_address": mac,
-        "system_info": {
-            "local_ip": local_ip,
-            "public_ip": public_ip,
-            "mac": mac,
-        },
+    "installationToken": config.get("registration_token"),
+    "installerVersion": AGENT_VERSION,
+    "platform": "Windows" if os.name == "nt" else (
+        "macOS" if sys.platform == "darwin" else "Linux"
+    ),
     }
     try:
         api_url = config.get('api_base') or "https://kuaminisystems.com/api/securityagent/agent"
@@ -861,20 +852,56 @@ def register(config):
         logging.info("Registration response: %s", resp.text[:200])
         resp.raise_for_status()
 
-        # Persist endpoint_id and account_id from response if provided
+        # Persist registration response fields
         try:
             body = resp.json()
-            endpoint_id = body.get("endpoint_id") or body.get("endpointId")
+
+            # Save installation instance ID returned by registration API
+            installation_instance_id = (
+                body.get("installationInstanceId")
+                or body.get("installation_instance_id")
+            )
+
+            if installation_instance_id:
+                config["installation_instance_id"] = installation_instance_id
+                logging.info(
+                    "Persisted installation_instance_id: %s",
+                    installation_instance_id
+                )
+
+            # Save endpoint ID if API returns it
+            endpoint_id = (
+                body.get("endpoint_id")
+                or body.get("endpointId")
+            )
+
             if endpoint_id:
                 config["endpoint_id"] = endpoint_id
-                logging.info("Persisted endpoint_id: %s", endpoint_id)
-            account_id = body.get("account_id") or body.get("accountId")
+                logging.info(
+                    "Persisted endpoint_id: %s",
+                    endpoint_id
+                )
+
+            # Save account ID if API returns it
+            account_id = (
+                body.get("account_id")
+                or body.get("accountId")
+            )
+
             if account_id:
                 config["account_id"] = account_id
-                logging.info("Persisted account_id from response: %s", account_id)
+                logging.info(
+                    "Persisted account_id from response: %s",
+                    account_id
+                )
+
             save_config(config)
+
         except Exception as e:
-            logging.warning("Could not persist registration response fields: %s", e)
+            logging.warning(
+                "Could not persist registration response fields: %s",
+                e
+            )
 
         # Persist account_id if missing, derived from token
         if not config.get("account_id") and config.get("registration_token"):
@@ -895,41 +922,68 @@ def register(config):
 def heartbeat(config):
     local_ip, mac = get_network_info()
     public_ip = get_public_ip()
+
+    installation_instance_id = (
+        config.get("installation_instance_id") or None
+    )
+
     agent_id = config.get("agent_id") or None
-    account_id = config.get("account_id") or None
-    endpoint_id = config.get("endpoint_id") or None
-    
+
+    if not installation_instance_id:
+        logging.error("Heartbeat failed: missing installation_instance_id")
+        return False, "Missing installation_instance_id"
+
     if not agent_id:
         logging.error("Heartbeat failed: missing agent_id")
         return False, "Missing agent_id"
-    
+
+    # Determine operating system
+    if sys.platform == "darwin":
+        os_name = "macos"
+    elif os.name == "nt":
+        os_name = "windows"
+    else:
+        os_name = "linux"
+
+    # Determine OS version
+    try:
+        import platform
+        os_version = platform.release() or "unknown"
+    except Exception:
+        os_version = "unknown"
+
     payload = {
-        "agent_id": agent_id,
-        "endpoint_id": endpoint_id,
-        "account_id": account_id,
-        "agent_version": AGENT_VERSION,
-        "status": "online",
-        "system_info": {
-            "os": "macos" if sys.platform == "darwin" else ("windows" if os.name == "nt" else "linux"),
-            "hostname": os.uname().nodename if hasattr(os, "uname") else os.environ.get("COMPUTERNAME") or "unknown",
-            "agent_version": AGENT_VERSION,
-            "ip": local_ip,
-            "local_ip": local_ip,
-            "public_ip": public_ip,
-            "mac": mac,
-        },
+        "installationInstanceId": installation_instance_id,
+        "hostname": (
+            os.uname().nodename
+            if hasattr(os, "uname")
+            else os.environ.get("COMPUTERNAME") or "unknown"
+        ),
+        "os": os_name,
+        "osVersion": os_version,
+        "agentVersion": AGENT_VERSION,
+        "ipAddress": local_ip,
+        "macAddress": mac,
+        "publicIp": public_ip,
+        "agentId": agent_id,
     }
+
     try:
         url = f"{config['api_base']}/heartbeat"
         logging.debug("Sending heartbeat to %s", url)
-        logging.info("Endpoint network info: local_ip=%s public_ip=%s", local_ip, public_ip)
+        logging.info(
+            "Endpoint network info: local_ip=%s public_ip=%s",
+            local_ip,
+            public_ip
+        )
         logging.debug(
-            "Heartbeat payload: agent_id=%s account_id=%s local_ip=%s public_ip=%s",
+            "Heartbeat payload: installation_instance_id=%s agent_id=%s local_ip=%s public_ip=%s",
+            installation_instance_id,
             agent_id,
-            account_id,
             local_ip,
             public_ip,
         )
+
         resp = requests.post(url, json=payload, timeout=15)
         if resp.status_code >= 400:
             # Log response body for easier troubleshooting
@@ -1850,4 +1904,6 @@ if __name__ == "__main__":
             print(f"[ERROR] {msg}", file=sys.stderr)
             log_to_emergency_file(msg)
             sys.stderr.flush()
+
+
 
