@@ -1,7 +1,7 @@
 ﻿VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1,0,24,0),
-    prodvers=(1,0,24,0),
+    filevers=(1,0,25,0),
+    prodvers=(1,0,25,0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -17,11 +17,11 @@
           [
             StringStruct('CompanyName', 'Kuamini Systems Private Limited'),
             StringStruct('FileDescription', 'Kuamini Security Client'),
-            StringStruct('FileVersion', '1.0.24.0'),
+            StringStruct('FileVersion', '1.0.25.0'),
             StringStruct('InternalName', 'KuaminiSecurityClient'),
             StringStruct('OriginalFilename', 'KuaminiSecurityClient.exe'),
             StringStruct('ProductName', 'Kuamini Security Client'),
-            StringStruct('ProductVersion', '1.0.24.0')
+            StringStruct('ProductVersion', '1.0.25.0')
           ]
         )
       ]
