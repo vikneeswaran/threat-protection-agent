@@ -69,7 +69,7 @@ Target Version: {version}
         sys.exit(1)
 
     pyinstaller_cmd = [
-        "python", "-m", "PyInstaller",
+        sys.executable, "-m", "PyInstaller",
         "--name", "KuaminiSecurityClient",
         "--onedir",
         "--windowed",
@@ -77,6 +77,12 @@ Target Version: {version}
         "--distpath", str(agent_dir / "dist"),
         "--workpath", str(agent_dir / "build" / "pyinstaller"),
         "--specpath", str(script_dir),
+
+        # Include tray status icons in the packaged application
+        "--add-data", str(agent_dir / "icon-green.png") + ";.",
+        "--add-data", str(agent_dir / "icon-yellow.png") + ";.",
+        "--add-data", str(agent_dir / "icon-red.png") + ";.",
+
         str(agent_dir / "main.py")
     ]
 
