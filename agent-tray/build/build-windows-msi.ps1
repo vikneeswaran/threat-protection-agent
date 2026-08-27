@@ -116,9 +116,8 @@ if (-not (Test-Path $lightPath)) {
 # Clean up any old config.json from dist folder
 Remove-Item (Join-Path $distDir "config.json") -Force -ErrorAction SilentlyContinue
 
-# Registration token is provided as a sidecar file at install time
-$logAccountId = "<provided at install>"
-$logAgentId = "<will be generated at install>"
+# Registration token is supplied separately during installation.
+# Do NOT package a token or placeholder token inside the MSI.
 
 if (-not (Test-Path $objDir)) {
     New-Item -ItemType Directory -Path $objDir | Out-Null
@@ -174,5 +173,5 @@ Remove-Item $configTemp -Force -ErrorAction SilentlyContinue
 
 Write-Host "Build completed successfully"
 Write-Host "MSI: $msiOutput"
-Write-Host "Account ID (from token): $logAccountId"
-Write-Host "Agent ID: $logAgentId (will be generated on first app run)"
+Write-Host "Account ID: supplied through installation token"
+Write-Host "Agent ID: will be generated on first app run"

@@ -56,13 +56,19 @@ Write-Host "Found token: $(Split-Path -Leaf $tokenPath)" -ForegroundColor Cyan
 # ============================================================================
 
 Write-Host "Reading registration token..." -ForegroundColor Yellow
-$token = Get-Content $tokenPath -Raw
+$token = (Get-Content $tokenPath -Raw).Trim()
+
 if (-not $token) {
     Write-Host "ERROR: registration.token is empty" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Token loaded (length: $($token.Length) bytes)" -ForegroundColor Cyan
+if ($token.Length -ne 128) {
+    Write-Host "ERROR: Invalid registration token length. Expected exactly 128 characters, got $($token.Length)." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Token loaded successfully (128 characters)" -ForegroundColor Cyan
 
 # ============================================================================
 # INSTALL MSI WITH TOKEN

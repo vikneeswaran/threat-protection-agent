@@ -40,7 +40,8 @@
           Source="$(var.SourceDir)\KuaminiSecurityClient.exe"
           KeyPath="yes" />
 
-</Component>
+    </Component>
+
       <Component Id="RegistryAutoStart" Guid="99999999-8888-7777-6666-555555555555" Win64="yes">
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
                        Name="KuaminiSecurityClient"
@@ -51,7 +52,7 @@
     </DirectoryRef>
 
 
-    <!-- Start the agent after installation -->
+    <!-- Start the agent after installation
     <CustomAction Id="StartAgent"
                   Directory="SystemFolder"
                   Execute="deferred"
@@ -60,7 +61,7 @@
 
     <InstallExecuteSequence>
   <Custom Action="StartAgent" After="InstallFiles" />
-</InstallExecuteSequence>
+</InstallExecuteSequence> -->
 
     <!-- UI -->
     <UIRef Id="WixUI_Minimal" />

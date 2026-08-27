@@ -97,7 +97,7 @@ except ImportError as e:
     sys.exit(1)
 
 DEFAULT_HEARTBEAT_INTERVAL = 60
-AGENT_VERSION = os.environ.get("AGENT_VERSION", "1.0.25")
+AGENT_VERSION = os.environ.get("AGENT_VERSION", "1.0.26")
 PUBLIC_IP_CACHE_TTL_SECONDS = 600
 _public_ip_cache_value: str | None = None
 _public_ip_cache_ts: float = 0.0
@@ -826,11 +826,11 @@ def register(config):
     public_ip = get_public_ip()
 
     payload = {
-    "installationToken": config.get("registration_token"),
-    "installerVersion": AGENT_VERSION,
-    "platform": "Windows" if os.name == "nt" else (
-        "macOS" if sys.platform == "darwin" else "Linux"
-    ),
+        "installationToken": config.get("registration_token"),
+        "installerVersion": AGENT_VERSION,
+        "platform": "Windows" if os.name == "nt" else (
+            "macOS" if sys.platform == "darwin" else "Linux"
+        ),
     }
     try:
         api_url = config.get('api_base') or "https://kuaminisystems.com/api/securityagent/agent"
@@ -922,50 +922,37 @@ def register(config):
 def heartbeat(config):
     local_ip, mac = get_network_info()
     public_ip = get_public_ip()
-
-    installation_instance_id = (
-        config.get("installation_instance_id") or None
-    )
-
     agent_id = config.get("agent_id") or None
-
-    if not installation_instance_id:
-        logging.error("Heartbeat failed: missing installation_instance_id")
-        return False, "Missing installation_instance_id"
+    account_id = config.get("account_id") or None
+    endpoint_id = config.get("endpoint_id") or None
 
     if not agent_id:
         logging.error("Heartbeat failed: missing agent_id")
         return False, "Missing agent_id"
 
-    # Determine operating system
-    if sys.platform == "darwin":
-        os_name = "macos"
-    elif os.name == "nt":
-        os_name = "windows"
-    else:
-        os_name = "linux"
-
-    # Determine OS version
-    try:
-        import platform
-        os_version = platform.release() or "unknown"
-    except Exception:
-        os_version = "unknown"
-
     payload = {
-        "installationInstanceId": installation_instance_id,
-        "hostname": (
-            os.uname().nodename
-            if hasattr(os, "uname")
-            else os.environ.get("COMPUTERNAME") or "unknown"
-        ),
-        "os": os_name,
-        "osVersion": os_version,
-        "agentVersion": AGENT_VERSION,
-        "ipAddress": local_ip,
-        "macAddress": mac,
-        "publicIp": public_ip,
-        "agentId": agent_id,
+        "agent_id": agent_id,
+        "endpoint_id": endpoint_id,
+        "account_id": account_id,
+        "agent_version": AGENT_VERSION,
+        "status": "online",
+        "system_info": {
+            "os": (
+                "macos"
+                if sys.platform == "darwin"
+                else ("windows" if os.name == "nt" else "linux")
+            ),
+            "hostname": (
+                os.uname().nodename
+                if hasattr(os, "uname")
+                else os.environ.get("COMPUTERNAME") or "unknown"
+            ),
+            "agent_version": AGENT_VERSION,
+            "ip": local_ip,
+            "local_ip": local_ip,
+            "public_ip": public_ip,
+            "mac": mac,
+        },
     }
 
     try:
@@ -977,56 +964,98 @@ def heartbeat(config):
             public_ip
         )
         logging.debug(
-            "Heartbeat payload: installation_instance_id=%s agent_id=%s local_ip=%s public_ip=%s",
-            installation_instance_id,
+            "Heartbeat payload: agent_id=%s account_id=%s local_ip=%s public_ip=%s",
             agent_id,
+            account_id,
             local_ip,
             public_ip,
         )
 
         resp = requests.post(url, json=payload, timeout=15)
+
         if resp.status_code >= 400:
-            # Log response body for easier troubleshooting
             try:
                 body = resp.json()
                 error_msg = body.get("error", resp.text)
             except Exception:
                 error_msg = resp.text
-            logging.error("? Heartbeat HTTP %s: %s", resp.status_code, error_msg)
-            resp.raise_for_status()
-        logging.info("? Heartbeat successful (HTTP %s)", resp.status_code)
-        return True, resp.json()
-    except Exception as exc:
-        logging.exception("? Heartbeat failed: %s", exc)
 
-        # If endpoint not found, attempt re-registration once and retry heartbeat
+            logging.error(
+                "Heartbeat HTTP %s: %s",
+                resp.status_code,
+                error_msg
+            )
+            resp.raise_for_status()
+
+        logging.info(
+            "Heartbeat successful (HTTP %s)",
+            resp.status_code
+        )
+        return True, resp.json()
+
+    except Exception as exc:
+        logging.exception("Heartbeat failed: %s", exc)
+
         try:
-            status = exc.response.status_code if hasattr(exc, "response") and exc.response is not None else None
+            status = (
+                exc.response.status_code
+                if hasattr(exc, "response") and exc.response is not None
+                else None
+            )
         except Exception:
             status = None
 
         if status == 404:
             logging.warning("Heartbeat 404: attempting re-registration")
+
             ok_reg, res_reg = register(config)
-            logging.info("Re-register result after 404: ok=%s res=%s", ok_reg, res_reg)
+
+            logging.info(
+                "Re-register result after 404: ok=%s res=%s",
+                ok_reg,
+                res_reg
+            )
+
             if ok_reg:
                 try:
-                    logging.info("Retrying heartbeat after re-registration...")
+                    logging.info(
+                        "Retrying heartbeat after re-registration..."
+                    )
+
                     retry_payload = {
                         **payload,
-                        "endpoint_id": config.get("endpoint_id") or payload.get("endpoint_id"),
-                        "account_id": config.get("account_id") or payload.get("account_id"),
+                        "endpoint_id": (
+                            config.get("endpoint_id")
+                            or payload.get("endpoint_id")
+                        ),
+                        "account_id": (
+                            config.get("account_id")
+                            or payload.get("account_id")
+                        ),
                     }
-                    resp_retry = requests.post(url, json=retry_payload, timeout=15)
+
+                    resp_retry = requests.post(
+                        url,
+                        json=retry_payload,
+                        timeout=15
+                    )
+
                     if resp_retry.status_code < 400:
                         return True, resp_retry.json()
-                    else:
-                        logging.error("Retry heartbeat HTTP %s: %s", resp_retry.status_code, resp_retry.text)
+
+                    logging.error(
+                        "Retry heartbeat HTTP %s: %s",
+                        resp_retry.status_code,
+                        resp_retry.text
+                    )
+
                 except Exception as exc_retry:
-                    logging.exception("Retry heartbeat failed: %s", exc_retry)
+                    logging.exception(
+                        "Retry heartbeat failed: %s",
+                        exc_retry
+                    )
 
         return False, str(exc)
-
 
 def check_pending_scan_commands(config):
     """Check if there are any pending scan commands from the console"""
@@ -1904,6 +1933,7 @@ if __name__ == "__main__":
             print(f"[ERROR] {msg}", file=sys.stderr)
             log_to_emergency_file(msg)
             sys.stderr.flush()
+
 
 
 
