@@ -64,12 +64,54 @@ Target Version: {version}
     # Step 2: Run PyInstaller
     version_file = agent_dir / "version_info.txt"
 
-    if not version_file.exists():
-        print(f"\n[ERROR] Version file not found at {version_file}")
+    version_parts = version.split(".")
+
+    if len(version_parts) != 3:
+        print(f"\n[ERROR] VERSION must be in format X.Y.Z, got: {version}")
         sys.exit(1)
+
+    version_tuple = tuple(int(part) for part in version_parts) + (0,)
+
+    version_info_content = f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0,0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          '040904B0',
+          [
+            StringStruct('CompanyName', 'Kuamini Systems Private Limited'),
+            StringStruct('FileDescription', 'Kuamini Security Client'),
+            StringStruct('FileVersion', '{version}.0'),
+            StringStruct('InternalName', 'KuaminiSecurityClient'),
+            StringStruct('OriginalFilename', 'KuaminiSecurityClient.exe'),
+            StringStruct('ProductName', 'Kuamini Security Client'),
+            StringStruct('ProductVersion', '{version}.0')
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+"""
+
+    version_file.write_text(version_info_content, encoding="utf-8")
+
+    print(f"[SUCCESS] Generated version info: {version_file}")
 
     pyinstaller_cmd = [
         sys.executable, "-m", "PyInstaller",
+        "--clean",
         "--name", "KuaminiSecurityClient",
         "--onedir",
         "--windowed",
