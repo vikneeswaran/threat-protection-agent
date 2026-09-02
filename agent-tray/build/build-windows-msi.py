@@ -9,7 +9,6 @@ import os
 import sys
 import subprocess
 import shutil
-import re
 from pathlib import Path
 import zipfile
 
@@ -20,31 +19,30 @@ def run_command(cmd, description):
     print(f"Running: {description}")
     print(f"{'='*60}")
     print(f"Command: {' '.join(cmd)}\n")
-    
+
     result = subprocess.run(cmd, shell=False)
     if result.returncode != 0:
         print(f"\n[ERROR] {description} failed with exit code {result.returncode}")
         sys.exit(1)
-    
+
     print(f"[SUCCESS] {description} completed successfully")
     return result
 
 
 def main():
     """Main build process."""
-    # Determine paths
     script_dir = Path(__file__).parent
     agent_dir = script_dir.parent
     project_root = agent_dir.parent
-    
-    # Change to agent-tray directory
+
     os.chdir(agent_dir)
-    
-    version = os.environ.get("VERSION")
+
+    # Prefer workflow-driven version, but keep VERSION for compatibility.
+    version = os.environ.get("AGENT_VERSION") or os.environ.get("VERSION")
     if not version:
-        print("[ERROR] VERSION environment variable not set. Aborting.")
+        print("[ERROR] AGENT_VERSION/VERSION environment variable not set. Aborting.")
         sys.exit(1)
-    
+
     print(f"""
 {'='*60}
 Building Kuamini Security Client for Windows
@@ -53,17 +51,16 @@ Build Directory: {str(agent_dir)}
 Target Version: {version}
 {'='*60}
 """)
-    
+
     # Step 1: Clean old build artifacts
     print("Cleaning old build artifacts...")
     dist_dir = agent_dir / "dist" / "KuaminiSecurityClient"
     if dist_dir.exists():
         shutil.rmtree(dist_dir, ignore_errors=True)
         print(f"  Removed: {dist_dir}")
-    
+
     # Step 2: Run PyInstaller
     version_file = agent_dir / "version_info.txt"
-
     if not version_file.exists():
         print(f"\n[ERROR] Version file not found at {version_file}")
         sys.exit(1)
@@ -87,20 +84,20 @@ Target Version: {version}
     ]
 
     run_command(pyinstaller_cmd, "PyInstaller (freeze Python code)")
-    
+
     exe_path = agent_dir / "dist" / "KuaminiSecurityClient" / "KuaminiSecurityClient.exe"
     if not exe_path.exists():
         print(f"\n[ERROR] Expected EXE not found at {exe_path}")
         sys.exit(1)
-    
+
     print(f"[SUCCESS] EXE created: {exe_path}")
-    
+
     # Step 3: Run WiX MSI build via PowerShell
     ps_script = script_dir / "build-windows-msi.ps1"
     if not ps_script.exists():
         print(f"\n[ERROR] PowerShell build script not found at {ps_script}")
         sys.exit(1)
-    
+
     powershell_cmd = [
         "powershell",
         "-NoProfile",
@@ -109,22 +106,22 @@ Target Version: {version}
         "-Version", version
     ]
     run_command(powershell_cmd, "WiX MSI Build")
-    
+
     # Step 4: Verify MSI was created
     msi_path = agent_dir / "dist" / f"KuaminiSecurityClient-{version}.msi"
     if not msi_path.exists():
         print(f"\n[ERROR] MSI not found at {msi_path}")
         sys.exit(1)
-    
+
     print(f"\n[SUCCESS] MSI created: {msi_path}")
-    
+
     # Step 5: Create Windows installer ZIP for distribution
     zip_path = project_root / "public" / "tray" / f"KuaminiSecurityClient-{version}-windows.zip"
     zip_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.write(msi_path, arcname=f"KuaminiSecurityClient-{version}.msi")
-    
+
     print(f"[SUCCESS] ZIP bundle created: {zip_path}")
     print(f"""
 {'='*60}

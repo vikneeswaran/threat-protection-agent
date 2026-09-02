@@ -11,14 +11,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Fallback checking hierarchy: Check pipeline environment variable first
+# Prefer workflow-provided version, then explicit parameter, and fail if missing.
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = $env:AGENT_VERSION
 }
 
-# If both are empty, enforce strict failure
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    throw "AGENT_VERSION must be set by .github/workflows/build-agents.yml or provided as an execution parameter."
+    throw "AGENT_VERSION must be set by .github/workflows/build-agents.yml or provided as a Version parameter."
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -37,7 +36,7 @@ $lightPath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe"
 $objDir = Join-Path $scriptDir "obj"
 $publicTrayDir = Join-Path $projectRoot "public\tray"
 
-# Maintain the platform's required version padding format structure (consuming $Version)
+# Maintain the platform's required version padding format structure.
 $versionParts = $Version.Split('.')
 switch ($versionParts.Count) {
     1 { $productVersion = "$Version.0.0.0" }
@@ -83,8 +82,8 @@ if (-not (Test-Path $lightPath)) {
     exit 1
 }
 
-# The config.json template is only used for reference
-# The actual MSI will not include config.json - it will be created at runtime by the app
+# The config.json template is only used for reference.
+# The MSI should not include a static config.json file.
 
 # Clean up any old config.json from dist folder
 Remove-Item (Join-Path $distDir "config.json") -Force -ErrorAction SilentlyContinue
