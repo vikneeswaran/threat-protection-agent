@@ -26,77 +26,9 @@ PACKAGE_DIR="${BUILD_DIR}/pkgtmp"
 SCRIPTS_DIR="${PACKAGE_DIR}/scripts"
 PAYLOAD_DIR="${PACKAGE_DIR}/payload"
 
-version_is_greater_or_equal() {
-  local left="$1"
-  local right="$2"
-  local left_parts right_parts
-  local left_len right_len max_len i left_part right_part
+# Validate that AGENT_VERSION is explicitly passed by the workflow runner environment
+: "${AGENT_VERSION:?AGENT_VERSION must be set by .github/workflows/build-agents.yml}"
 
-  IFS='.' read -r -a left_parts <<< "$left"
-  IFS='.' read -r -a right_parts <<< "$right"
-
-  left_len=${#left_parts[@]}
-  right_len=${#right_parts[@]}
-  max_len=$left_len
-  if [ "$right_len" -gt "$max_len" ]; then
-    max_len=$right_len
-  fi
-
-  for ((i = 0; i < max_len; i++)); do
-    left_part=${left_parts[i]:-0}
-    right_part=${right_parts[i]:-0}
-
-    if ((10#$left_part > 10#$right_part)); then
-      return 0
-    fi
-    if ((10#$left_part < 10#$right_part)); then
-      return 1
-    fi
-  done
-
-  return 0
-}
-
-determine_next_version() {
-  local latest=""
-  local candidate
-  local file
-
-  for candidate in "${PROJECT_ROOT}/public/tray" "${BUILD_DIR}"; do
-    if [ ! -d "$candidate" ]; then
-      continue
-    fi
-    while IFS= read -r -d '' file; do
-      local base
-      base="$(basename "$file")"
-      if [[ "$base" =~ ^KuaminiSecurityClient-([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?)\.pkg$ ]]; then
-        local ver="${BASH_REMATCH[1]}"
-        if [ -z "$latest" ] || version_is_greater_or_equal "$ver" "$latest"; then
-          latest="$ver"
-        fi
-      fi
-    done < <(find "$candidate" -maxdepth 1 -type f -name "KuaminiSecurityClient-*.pkg" -print0 2>/dev/null)
-  done
-
-  if [ -z "$latest" ]; then
-    echo "1.0.0"
-    return
-  fi
-
-  IFS='.' read -r major minor patch extra <<< "$latest"
-  major=${major:-1}
-  minor=${minor:-0}
-  patch=${patch:-0}
-  patch=$((patch + 1))
-
-  if [ -n "$extra" ]; then
-    echo "$major.$minor.$patch.$extra"
-  else
-    echo "$major.$minor.$patch"
-  fi
-}
-
-AGENT_VERSION="${AGENT_VERSION:-$(determine_next_version)}"
 OUTPUT_PKG="${BUILD_DIR}/KuaminiSecurityClient-${AGENT_VERSION}.pkg"
 echo -e "${GREEN}Using package version: ${AGENT_VERSION}${NC}"
 

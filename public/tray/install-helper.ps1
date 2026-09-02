@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-Kuamini Security Client Installer v1.0.27 - Enhanced Helper Script
+Kuamini Security Client Installer - Enhanced Helper Script
 Fixed: Token validation, registration, and threat reporting
 
 .DESCRIPTION
@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = "Stop"
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host "Kuamini Security Client Installer v1.0.27" -ForegroundColor Green
+Write-Host "Installing Kuamini Security Client version from build metadata..." -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
@@ -33,27 +33,26 @@ Write-Host ""
 
 Write-Host "[1/5] Searching for registration token..." -ForegroundColor Yellow
 
-$tokenPath = $null
 $tokenContent = $null
 
 # Search in script directory first
-@("registration.token", "registration_token.txt") | ForEach-Object {
-    $candidate = Join-Path $scriptPath $_
+foreach ($fileName in @("registration.token", "registration_token.txt")) {
+    $candidate = Join-Path $scriptPath $fileName
     if (Test-Path $candidate) {
         try {
             $content = Get-Content $candidate -Raw -Encoding UTF8
             if ($content -and $content.Trim().Length -gt 50 -and $content.Trim() -ne "placeholder-token") {
-                $tokenPath = $candidate
                 $tokenContent = $content.Trim()
                 Write-Host "  ✓ Found valid token in: $candidate" -ForegroundColor Green
+                break # Exit loop early once a valid token is found
             }
         } catch {
-            Write-Host "  ⚠ Could not read $($_): $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  ⚠ Could not read $($fileName): $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 }
 
-if (-not $tokenPath) {
+if (-not $tokenContent) {
     Write-Host "  ✗ ERROR: No valid registration token found!" -ForegroundColor Red
     Write-Host "  Expected: registration.token or registration_token.txt" -ForegroundColor Red
     Write-Host "  Location: Same directory as install-windows.cmd" -ForegroundColor Red
@@ -72,8 +71,11 @@ Write-Host "[2/5] Locating MSI installer..." -ForegroundColor Yellow
 $msiPath = Get-ChildItem -Path $scriptPath -Filter "KuaminiSecurityClient-*.msi" -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -match '^KuaminiSecurityClient-\d+\.\d+\.\d+(\.\d+)?\.msi$' } |
     Sort-Object {
-        $v = [regex]::Match($_.Name, 'KuaminiSecurityClient-(\d+\.\d+\.\d+(?:\.\d+)?).msi').Groups[1].Value.Split('.')
-        [Version](($v + @("0","0","0","0"))[0..3] -join '.')
+        # Securely parse the version using the casting mechanism cleanly
+        $match = [regex]::Match($_.Name, 'KuaminiSecurityClient-(\d+\.\d+\.\d+(?:\.\d+)?).msi')
+        $versionString = $match.Groups[1].Value
+        $elements = $versionString.Split('.')
+        [Version](($elements + @("0","0","0","0"))[0..3] -join '.')
     } -Descending |
     Select-Object -First 1 -ExpandProperty FullName
 
@@ -193,27 +195,3 @@ if (Test-Path $exePath) {
 # ============================================================================
 # FINAL SUMMARY
 # ============================================================================
-
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Green
-Write-Host "  ✓ INSTALLATION COMPLETED SUCCESSFULLY" -ForegroundColor Green
-Write-Host "============================================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Next Steps:" -ForegroundColor Cyan
-Write-Host "  1. Open Kuamini Security Console" -ForegroundColor Gray
-Write-Host "     https://kuaminisystems.com/securityAgent" -ForegroundColor Gray
-Write-Host "  2. Login to your account" -ForegroundColor Gray
-Write-Host "  3. Verify the new endpoint appears in your dashboard" -ForegroundColor Gray
-Write-Host "  4. Agent will auto-register and begin threat scanning" -ForegroundColor Gray
-Write-Host ""
-Write-Host "Agent Status:" -ForegroundColor Cyan
-Write-Host "  - Look for tray icon in bottom-right corner" -ForegroundColor Gray
-Write-Host "  - Initial threat scan will run automatically" -ForegroundColor Gray
-Write-Host "  - Results appear in dashboard within 1-2 minutes" -ForegroundColor Gray
-Write-Host ""
-Write-Host "Logs:" -ForegroundColor Cyan
-Write-Host "  - Agent log: $configDir\agent.log" -ForegroundColor Gray
-Write-Host "  - Config: $configDir\config.json" -ForegroundColor Gray
-Write-Host ""
-
-exit 0

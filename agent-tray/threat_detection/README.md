@@ -392,7 +392,7 @@ success, policies = reporter.get_client_policies()
 ### Version Management
 ```python
 import threat_detection
-print(threat_detection.__version__)  # "1.0.0"
+Build the agent using the version defined in `.github/workflows/build-agents.yml`
 ```
 
 ## Support & Troubleshooting

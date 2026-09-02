@@ -11,6 +11,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Fallback checking hierarchy: Check pipeline environment variable first
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = $env:AGENT_VERSION
+}
+
+# If both are empty, enforce strict failure
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw "AGENT_VERSION must be set by .github/workflows/build-agents.yml or provided as an execution parameter."
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $agentDir = Split-Path -Parent $scriptDir
 $projectRoot = Split-Path -Parent $agentDir
@@ -21,50 +31,13 @@ $configTemp = Join-Path $scriptDir "config-temp.json"
 $internalWxs = Join-Path $scriptDir "InternalFiles.wxs"
 $wxsMain = Join-Path $scriptDir "KuaminiSecurityClient.wxs"
 $exePath = Join-Path $distDir "KuaminiSecurityClient.exe"
-$registrationMetaFile = Join-Path $distDir "registration.json"
 $heatPath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\heat.exe"
 $candlePath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe"
 $lightPath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe"
 $objDir = Join-Path $scriptDir "obj"
 $publicTrayDir = Join-Path $projectRoot "public\tray"
 
-function Get-NextVersion {
-    param(
-        [string[]]$SearchDirs
-    )
-
-    $regex = [regex]'^KuaminiSecurityClient-(\d+\.\d+\.\d+(?:\.\d+)?)\.msi$'
-    $versions = @()
-
-    foreach ($dir in $SearchDirs) {
-        if (-not (Test-Path $dir)) { continue }
-        Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | ForEach-Object {
-            $m = $regex.Match($_.Name)
-            if ($m.Success) {
-                $parts = $m.Groups[1].Value.Split('.') | ForEach-Object { [int]$_ }
-                $versions += ,@($parts)
-            }
-        }
-    }
-
-    if ($versions.Count -eq 0) {
-        return "1.0.0"
-    }
-
-    $max = $versions |
-        Sort-Object @{Expression = { $_[0] }}, @{Expression = { $_[1] }}, @{Expression = { $_[2] }}, @{Expression = { if ($_.Count -gt 3) { $_[3] } else { 0 } }} |
-        Select-Object -Last 1
-
-    while ($max.Count -lt 3) { $max += 0 }
-    $max[2] = [int]$max[2] + 1
-    return ($max -join '.')
-}
-
-if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = Get-NextVersion -SearchDirs @($publicTrayDir, (Join-Path $agentDir "dist"))
-    Write-Host "Auto-selected MSI version: $Version"
-}
-
+# Maintain the platform's required version padding format structure (consuming $Version)
 $versionParts = $Version.Split('.')
 switch ($versionParts.Count) {
     1 { $productVersion = "$Version.0.0.0" }
