@@ -140,7 +140,7 @@ Account ID: {account_id or '(not provided)'}
     # Copy MSI into ZIP staging
     shutil.copy2(msi_path, zip_stage_dir / msi_path.name)
 
-    # Include the known working helper scripts
+    # Include the known working helper scripts from public/tray
     helper_files = [
         "install-helper.ps1",
         "uninstall-kuamini-windows.ps1",
@@ -153,10 +153,16 @@ Account ID: {account_id or '(not provided)'}
         if source.exists():
             shutil.copy2(source, zip_stage_dir / filename)
 
-    # Include registration token placeholder if account id is available
-    # (remove this if you do not want a token file in the ZIP)
-    if account_id:
-        (zip_stage_dir / "registration.token").write_text("placeholder-token", encoding="utf-8")
+    # Create registration.token for the installer helper.
+    # Use REGISTRATION_TOKEN if provided; otherwise fall back to placeholder-token.
+    registration_token = os.environ.get("REGISTRATION_TOKEN", "").strip()
+    if not registration_token:
+        registration_token = "placeholder-token"
+
+    (zip_stage_dir / "registration.token").write_text(
+        registration_token,
+        encoding="utf-8"
+    )
 
     # Build ZIP
     if zip_path.exists():

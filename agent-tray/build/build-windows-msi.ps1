@@ -169,24 +169,25 @@ $helperFiles = @(
     "uninstall-kuamini-windows.ps1",
     "install-windows.cmd",
     "uninstall-windows.cmd",
-    "install.ps1",
-    "uninstall-kuamini-linux.sh",
-    "uninstall-kuamini-macos.sh"
+    "install.ps1"
 )
 
 foreach ($file in $helperFiles) {
     $source = Join-Path $publicTrayDir $file
     if (Test-Path $source) {
         Copy-Item $source (Join-Path $zipStageDir $file) -Force
+    } else {
+        Write-Host "WARNING: Expected helper file not found: $source" -ForegroundColor Yellow
     }
 }
 
-# Copy a registration token placeholder if your workflow expects it.
-# If you do not want a token file in the ZIP, remove this block.
-$registrationTokenPath = Join-Path $zipStageDir "registration.token"
-if ($AccountId) {
-    Set-Content -Path $registrationTokenPath -Value "placeholder-token" -Encoding UTF8 -NoNewline
+# Create registration.token for the installer helper.
+# Use a real token from REGISTRATION_TOKEN if available; otherwise fall back to placeholder-token.
+$registrationToken = $env:REGISTRATION_TOKEN
+if ([string]::IsNullOrWhiteSpace($registrationToken)) {
+    $registrationToken = "placeholder-token"
 }
+Set-Content -Path (Join-Path $zipStageDir "registration.token") -Value $registrationToken -Encoding UTF8 -NoNewline
 
 # Create ZIP
 if (Test-Path $zipOutputPath) {
