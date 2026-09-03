@@ -36,6 +36,15 @@ $lightPath = "C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe"
 $objDir = Join-Path $scriptDir "obj"
 $publicTrayDir = Join-Path $projectRoot "public\tray"
 
+# ZIP packaging dirs
+$zipStageDir = Join-Path $scriptDir "zip-stage"
+$zipOutputName = if (-not [string]::IsNullOrWhiteSpace($AccountId)) {
+    "KuaminiSecurityClient-$Version-$AccountId.zip"
+} else {
+    "KuaminiSecurityClient-$Version-windows.zip"
+}
+$zipOutputPath = Join-Path $publicTrayDir $zipOutputName
+
 # Maintain the platform's required version padding format structure.
 $versionParts = $Version.Split('.')
 switch ($versionParts.Count) {
@@ -50,6 +59,8 @@ $msiOutput = Join-Path $agentDir "dist\KuaminiSecurityClient-$Version.msi"
 Write-Host "================================================"
 Write-Host "Building MSI Installer v$Version"
 Write-Host "Product Version: $productVersion"
+Write-Host "Account ID: $AccountId"
+Write-Host "ZIP Output: $zipOutputName"
 Write-Host "================================================"
 
 if (-not (Test-Path $exePath)) {
@@ -141,9 +152,56 @@ if (Test-Path $publicTrayDir) {
     Copy-Item $msiOutput (Join-Path $publicTrayDir "KuaminiSecurityClient-$Version.msi") -Force
 }
 
+# --------------------------------------------------------------------------
+# Build the downloadable ZIP that contains installer + helper scripts
+# --------------------------------------------------------------------------
+if (Test-Path $zipStageDir) {
+    Remove-Item $zipStageDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Path $zipStageDir | Out-Null
+
+# Stage the MSI
+Copy-Item $msiOutput (Join-Path $zipStageDir ("KuaminiSecurityClient-$Version.msi")) -Force
+
+# Stage the helper scripts from public/tray
+$helperFiles = @(
+    "install-helper.ps1",
+    "uninstall-kuamini-windows.ps1",
+    "install-windows.cmd",
+    "uninstall-windows.cmd",
+    "install.ps1",
+    "uninstall-kuamini-linux.sh",
+    "uninstall-kuamini-macos.sh"
+)
+
+foreach ($file in $helperFiles) {
+    $source = Join-Path $publicTrayDir $file
+    if (Test-Path $source) {
+        Copy-Item $source (Join-Path $zipStageDir $file) -Force
+    }
+}
+
+# Copy a registration token placeholder if your workflow expects it.
+# If you do not want a token file in the ZIP, remove this block.
+$registrationTokenPath = Join-Path $zipStageDir "registration.token"
+if ($AccountId) {
+    Set-Content -Path $registrationTokenPath -Value "placeholder-token" -Encoding UTF8 -NoNewline
+}
+
+# Create ZIP
+if (Test-Path $zipOutputPath) {
+    Remove-Item $zipOutputPath -Force
+}
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($zipStageDir, $zipOutputPath)
+
+# Cleanup staging
+Remove-Item $zipStageDir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $configTemp -Force -ErrorAction SilentlyContinue
 
 Write-Host "Build completed successfully"
 Write-Host "MSI: $msiOutput"
+Write-Host "ZIP: $zipOutputPath"
 Write-Host "Account ID: supplied through installation token"
 Write-Host "Agent ID: will be generated on first app run"

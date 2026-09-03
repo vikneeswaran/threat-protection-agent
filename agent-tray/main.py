@@ -98,9 +98,11 @@ except ImportError as e:
     sys.exit(1)
 
 DEFAULT_HEARTBEAT_INTERVAL = 60
-AGENT_VERSION = os.environ.get("AGENT_VERSION")
-if not AGENT_VERSION:
-    raise RuntimeError("AGENT_VERSION is not set")
+AGENT_VERSION = (
+    os.environ.get("AGENT_VERSION")
+    or os.environ.get("VERSION")
+    or "unknown"
+)
 PUBLIC_IP_CACHE_TTL_SECONDS = 600
 _public_ip_cache_value: str | None = None
 _public_ip_cache_ts: float = 0.0

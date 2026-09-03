@@ -43,12 +43,15 @@ def main():
         print("[ERROR] AGENT_VERSION/VERSION environment variable not set. Aborting.")
         sys.exit(1)
 
+    account_id = os.environ.get("ACCOUNT_ID", "").strip()
+
     print(f"""
 {'='*60}
 Building Kuamini Security Client for Windows
 Python Version: {sys.version.split()[0]}
 Build Directory: {str(agent_dir)}
 Target Version: {version}
+Account ID: {account_id or '(not provided)'}
 {'='*60}
 """)
 
@@ -105,6 +108,9 @@ Target Version: {version}
         "-File", str(ps_script),
         "-Version", version
     ]
+    if account_id:
+        powershell_cmd.extend(["-AccountId", account_id])
+
     run_command(powershell_cmd, "WiX MSI Build")
 
     # Step 4: Verify MSI was created
@@ -116,11 +122,51 @@ Target Version: {version}
     print(f"\n[SUCCESS] MSI created: {msi_path}")
 
     # Step 5: Create Windows installer ZIP for distribution
-    zip_path = project_root / "public" / "tray" / f"KuaminiSecurityClient-{version}-windows.zip"
-    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    public_tray_dir = project_root / "public" / "tray"
+    public_tray_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.write(msi_path, arcname=f"KuaminiSecurityClient-{version}.msi")
+    zip_name = (
+        f"KuaminiSecurityClient-{version}-{account_id}.zip"
+        if account_id
+        else f"KuaminiSecurityClient-{version}-windows.zip"
+    )
+    zip_path = public_tray_dir / zip_name
+
+    zip_stage_dir = script_dir / "zip-stage"
+    if zip_stage_dir.exists():
+        shutil.rmtree(zip_stage_dir, ignore_errors=True)
+    zip_stage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy MSI into ZIP staging
+    shutil.copy2(msi_path, zip_stage_dir / msi_path.name)
+
+    # Include the known working helper scripts
+    helper_files = [
+        "install-helper.ps1",
+        "uninstall-kuamini-windows.ps1",
+        "install-windows.cmd",
+        "uninstall-windows.cmd",
+        "install.ps1",
+    ]
+    for filename in helper_files:
+        source = public_tray_dir / filename
+        if source.exists():
+            shutil.copy2(source, zip_stage_dir / filename)
+
+    # Include registration token placeholder if account id is available
+    # (remove this if you do not want a token file in the ZIP)
+    if account_id:
+        (zip_stage_dir / "registration.token").write_text("placeholder-token", encoding="utf-8")
+
+    # Build ZIP
+    if zip_path.exists():
+        zip_path.unlink()
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file_path in zip_stage_dir.iterdir():
+            zf.write(file_path, arcname=file_path.name)
+
+    shutil.rmtree(zip_stage_dir, ignore_errors=True)
 
     print(f"[SUCCESS] ZIP bundle created: {zip_path}")
     print(f"""

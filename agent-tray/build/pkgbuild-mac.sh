@@ -19,6 +19,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( dirname "$( dirname "$SCRIPT_DIR" )" )"
 AGENT_ROOT="$( dirname "$SCRIPT_DIR" )"
 
+# Prefer workflow env vars, but allow explicit fallback for compatibility
+VERSION="${AGENT_VERSION:-${VERSION:-}}"
+if [ -z "$VERSION" ]; then
+  echo -e "${RED}Error: AGENT_VERSION or VERSION must be set by the workflow or environment.${NC}"
+  exit 1
+fi
+
+ACCOUNT_ID="${ACCOUNT_ID:-}"
+
 # Paths
 APP_BUNDLE="${AGENT_ROOT}/dist/KuaminiSecurityClient.app"
 BUILD_DIR="${SCRIPT_DIR}"
@@ -26,19 +35,17 @@ PACKAGE_DIR="${BUILD_DIR}/pkgtmp"
 SCRIPTS_DIR="${PACKAGE_DIR}/scripts"
 PAYLOAD_DIR="${PACKAGE_DIR}/payload"
 
-# Validate that AGENT_VERSION is explicitly passed by the workflow runner environment
-: "${AGENT_VERSION:?AGENT_VERSION must be set by .github/workflows/build-agents.yml}"
-
-OUTPUT_PKG="${BUILD_DIR}/KuaminiSecurityClient-${AGENT_VERSION}.pkg"
-echo -e "${GREEN}Using package version: ${AGENT_VERSION}${NC}"
+OUTPUT_PKG="${BUILD_DIR}/KuaminiSecurityClient-${VERSION}.pkg"
+echo -e "${GREEN}Using package version: ${VERSION}${NC}"
+if [ -n "$ACCOUNT_ID" ]; then
+  echo -e "${GREEN}Account ID: ${ACCOUNT_ID}${NC}"
+fi
 
 # Cleanup function
 cleanup() {
   echo -e "${YELLOW}Cleaning up temporary directories...${NC}"
   rm -rf "$PACKAGE_DIR"
 }
-
-# Error handler
 trap cleanup EXIT
 
 echo -e "${YELLOW}Checking for app bundle...${NC}"
@@ -59,10 +66,9 @@ mkdir -p "$SCRIPTS_DIR"
 echo -e "${YELLOW}Copying app bundle to payload...${NC}"
 cp -r "$APP_BUNDLE" "$PAYLOAD_DIR/Applications/"
 
-# Create preinstall script (optional)
+# Create preinstall script
 cat > "$SCRIPTS_DIR/preinstall" << 'EOF'
 #!/bin/bash
-# Preinstall script for Kuamini Security Client
 echo "Preparing to install Kuamini Security Client..."
 exit 0
 EOF
@@ -72,9 +78,7 @@ chmod +x "$SCRIPTS_DIR/preinstall"
 cat > "$SCRIPTS_DIR/postinstall" << 'EOF'
 #!/bin/bash
 # Postinstall script for Kuamini Security Client
-# NOTE: Do not use set -e here. Permission and xattr commands must not abort
-# package installation on newer macOS releases if the app bundle is not yet
-# materialized when this script runs.
+# Keep this tolerant of timing / permission issues.
 
 APP_PATH="/Applications/KuaminiSecurityClient.app"
 EXECUTABLE="$APP_PATH/Contents/MacOS/KuaminiSecurityClient"
@@ -98,64 +102,15 @@ if [ -d "$PAYLOAD_DIR/Applications/KuaminiSecurityClient.app" ]; then
   xattr -rd com.apple.quarantine "$PAYLOAD_DIR/Applications/KuaminiSecurityClient.app" 2>/dev/null || true
 fi
 
-# Create the distributor file (component plist)
-echo -e "${YELLOW}Creating distribution definition...${NC}"
-cat > "$BUILD_DIR/distribution.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key>
-  <string>com.kuamini.securityclient</string>
-  <key>CFBundleVersion</key>
-  <string>__AGENT_VERSION__</string>
-  <key>IFMajorVersion</key>
-  <integer>1</integer>
-  <key>IFMinorVersion</key>
-  <integer>0</integer>
-  <key>IFPkgFormat</key>
-  <string>plist10</string>
-  <key>IFPkgFlagAllowBackRev</key>
-  <false/>
-  <key>IFPkgFlagAuthenticateEverywhere</key>
-  <false/>
-  <key>IFPkgFlagEnableLocationChoicePlugin</key>
-  <false/>
-  <key>IFPkgFlagFollowLinks</key>
-  <true/>
-  <key>IFPkgFlagInstallFatBinaries</key>
-  <false/>
-  <key>IFPkgFlagIsRequired</key>
-  <false/>
-  <key>IFPkgFlagRelocatable</key>
-  <false/>
-  <key>IFPkgFlagRestartAction</key>
-  <string>NoRestart</string/>
-  <key>IFPkgFlagRootVolumeOnly</key>
-  <true/>
-  <key>IFPkgFlagUpdateInstalledLanguages</key>
-  <false/>
-  <key>IFPkgFlagUseUserSelectedMD5Checksums</key>
-  <false/>
-</dict>
-</plist>
-EOF
-
-sed -i.bak "s/__AGENT_VERSION__/${AGENT_VERSION}/g" "$BUILD_DIR/distribution.plist"
-rm -f "$BUILD_DIR/distribution.plist.bak"
-
 # Build the package using pkgbuild
 echo -e "${YELLOW}Building macOS package with pkgbuild...${NC}"
-
-# Remove old package if it exists
 rm -f "$OUTPUT_PKG"
 
-# Use pkgbuild to create the package
 pkgbuild \
   --root "$PAYLOAD_DIR" \
   --scripts "$SCRIPTS_DIR" \
   --identifier "com.kuamini.securityclient" \
-  --version "${AGENT_VERSION}" \
+  --version "${VERSION}" \
   --ownership preserve \
   "$OUTPUT_PKG"
 
@@ -164,17 +119,15 @@ if [ ! -f "$OUTPUT_PKG" ]; then
   exit 1
 fi
 
-# Verify the package was created
+# Optional helper package naming convention if you want to stage by account
+if [ -n "$ACCOUNT_ID" ]; then
+  echo -e "${YELLOW}Note: account-specific naming is usually handled by the server/download endpoint.${NC}"
+fi
+
 PKG_SIZE=$(du -h "$OUTPUT_PKG" | cut -f1)
 echo -e "${GREEN}✓ Package created successfully!${NC}"
 echo -e "${GREEN}  Location: $OUTPUT_PKG${NC}"
 echo -e "${GREEN}  Size: $PKG_SIZE${NC}"
-
-# Verify package contents
-echo -e "${YELLOW}Verifying package contents...${NC}"
-if pkgutil --check-signature "$OUTPUT_PKG" >/dev/null 2>&1; then
-  echo -e "${GREEN}✓ Package signature verified${NC}"
-fi
 
 echo -e "${GREEN}=== Build Complete ===${NC}"
 exit 0
