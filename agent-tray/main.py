@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Tuple
 from urllib.parse import urlparse
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- SINGLETON ENFORCEMENT ---
 def is_another_instance_running():
@@ -422,144 +425,22 @@ def _decode_account_id_from_token(token: str | None) -> str | None:
     return None
 
 
-def load_config():
-    def _discover_token_from_install_paths() -> str | None:
-        """Best-effort token discovery from installer/runtime locations."""
-        candidate_dirs = []
-        try:
-            if getattr(sys, 'frozen', False):
-                exe_dir = Path(sys.executable).parent
-                candidate_dirs.extend([exe_dir, exe_dir.parent / "Resources"])
-        except Exception:
-            pass
-
-        # Dev/runtime fallbacks
-        try:
-            candidate_dirs.append(Path(__file__).parent)
-        except Exception:
-            pass
-        try:
-            candidate_dirs.append(Path.cwd())
-        except Exception:
-            pass
-
-        for base in candidate_dirs:
-            for token_name in ["registration.token", "registration_token.txt"]:
-                token_file = base / token_name
-                if token_file.exists():
-                    try:
-                        token = token_file.read_text(encoding="utf-8").strip()
-                        if token:
-                            logging.info("Recovered registration token from: %s", token_file)
-                            return token
-                    except Exception as e:
-                        logging.warning("Failed reading token file %s: %s", token_file, e)
-        return None
-
-    config_path = get_config_path()
-    logging.info("Looking for config at: %s", config_path)
-    if config_path.exists():
-        logging.info("Loading config from: %s", config_path)
-        # Read raw bytes and strip BOM if present
-        try:
-            raw_bytes = config_path.read_bytes()
-            # Strip UTF-8 BOM if present (EF BB BF)
-            if raw_bytes.startswith(b'\xef\xbb\xbf'):
-                logging.info("Detected and stripping UTF-8 BOM from config")
-                raw_bytes = raw_bytes[3:]
-            # Strip UTF-16 LE BOM if present (FF FE)
-            if raw_bytes.startswith(b'\xff\xfe'):
-                logging.info("Detected UTF-16 LE BOM, decoding and re-encoding")
-                text = raw_bytes.decode('utf-16-le')
-                raw_bytes = text.encode('utf-8')
-            text = raw_bytes.decode('utf-8')
-            cfg = json.loads(text)
-        except Exception as e:
-            logging.error("Failed to load config with BOM handling: %s", e, exc_info=True)
-            # Final fallback: try utf-8-sig
-            try:
-                with open(config_path, "r", encoding="utf-8-sig") as f:
-                    cfg = json.load(f)
-            except Exception as e2:
-                logging.error("Final fallback failed: %s", e2, exc_info=True)
-                raise
-        
-        # Ensure agent_id exists; generate a persistent one if missing/empty
-        agent_id = cfg.get("agent_id")
-        if not agent_id or (isinstance(agent_id, str) and not agent_id.strip()):
-            logging.warning("Config has no valid agent_id (was: %s), generating new one", repr(agent_id))
-            cfg["agent_id"] = str(uuid.uuid4())
-            logging.info("Generated agent_id: %s", cfg["agent_id"])
-            try:
-                save_config(cfg)
-                logging.info("Successfully saved new agent_id to config")
-            except Exception as e:
-                logging.error("CRITICAL: Failed to save agent_id to config: %s", e, exc_info=True)
-        else:
-            logging.info("Using existing agent_id from config: %s", agent_id)
-        
-        # Ensure account_id exists; derive from registration_token if available
-        if not cfg.get("account_id") and cfg.get("registration_token"):
-            derived = _decode_account_id_from_token(cfg.get("registration_token"))
-            if derived:
-                cfg["account_id"] = derived
-                try:
-                    save_config(cfg)
-                    logging.info("Derived account_id from token and saved to config: %s", cfg["account_id"])
-                except Exception as e:
-                    logging.warning("Failed to persist derived account_id: %s", e)
-
-        # Recover token if existing config was created without one
-        if not cfg.get("registration_token"):
-            recovered_token = _discover_token_from_install_paths() or os.environ.get("REGISTRATION_TOKEN")
-            if recovered_token:
-                cfg["registration_token"] = recovered_token
-                logging.info("Recovered missing registration_token and updating config")
-                if not cfg.get("account_id"):
-                    derived = _decode_account_id_from_token(recovered_token)
-                    if derived:
-                        cfg["account_id"] = derived
-                try:
-                    save_config(cfg)
-                except Exception as e:
-                    logging.warning("Failed to persist recovered registration token: %s", e)
-        return cfg
-    # Fallback to env vars or token file
-    logging.warning("Config file not found at %s, checking for token file or environment variables", config_path)
-    
-    # Check for token files in known installation/runtime paths
-    token_from_file = _discover_token_from_install_paths()
-    
-    cfg = {
-        "api_base": os.environ.get("API_BASE") or "https://kuaminisystems.com/api/securityagent/agent",
-        "registration_token": token_from_file or os.environ.get("REGISTRATION_TOKEN"),
-        "agent_id": os.environ.get("AGENT_ID") or str(uuid.uuid4()),
-        "account_id": os.environ.get("ACCOUNT_ID"),
-        "console_url": os.environ.get("CONSOLE_URL", "https://kuaminisystems.com/securityAgent"),
-        "heartbeat_interval": int(os.environ.get("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
-        "auto_register": True,
-    }
-    
-    # Derive account_id from token if not already set
-    if not cfg.get("account_id") and cfg.get("registration_token"):
-        derived = _decode_account_id_from_token(cfg.get("registration_token"))
-        if derived:
-            cfg["account_id"] = derived
-            logging.info("Derived account_id from token: %s", cfg["account_id"])
-    
-    return cfg
-
-
-def save_config(cfg: dict):
-    """Persist config back to config.json in the resolved location."""
-    config_path = get_config_path()
+def _load_config(config_path):
+    # Preserve existing robust config discovery/BOM handling logic
+    # instead of reading directly from disk.
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
-        logging.info("Saved config to: %s", config_path)
-    except Exception as e:
-        logging.warning("Failed to save config to %s: %s", config_path, e)
+        return load_config()
+    except Exception:
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
+
+def _save_config(config_path, cfg):
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
 
 def _antialias_filter():
     # Pillow 10 removed Image.ANTIALIAS; use Resampling.LANCZOS when available
@@ -779,42 +660,69 @@ def get_public_ip(force_refresh: bool = False) -> str | None:
     return _public_ip_cache_value
 
 
-def register(config):
-    # Ensure account_id is populated from token if present
-    if not config.get("account_id"):
-        decoded = _decode_account_id_from_token(config.get("registration_token"))
-        if decoded:
-            config["account_id"] = decoded
-            try:
-                save_config(config)
-                logging.info("Persisted account_id from token before register: %s", decoded)
-            except Exception as e:
-                logging.warning("Failed to persist account_id before register: %s", e)
+def register(config_path):
+    cfg = _load_config(config_path)
 
-    # Check if we have placeholder token (not a real token)
-    token = (config.get("registration_token") or "").strip()
-    if token == "placeholder-token":
-        logging.warning("Registration skipped: placeholder token detected - this indicates the registration.token file was not properly copied during installation")
-        return False, "Placeholder token detected - installation may be incomplete"
-    
-    # Validate configuration before attempting registration
-    if not token:
-        logging.warning("Registration skipped: no registration_token in config. This is expected during fresh install before token injection.")
-        # Clear stale endpoint/account info when no token available
-        if config.get("endpoint_id") or config.get("account_id"):
-            logging.info("Clearing stale endpoint_id and account_id since registration_token is empty")
-            config["endpoint_id"] = ""
-            config["account_id"] = ""
-            try:
-                save_config(config)
-            except Exception as e:
-                logging.warning("Failed to clear stale IDs: %s", e)
-        return False, "No registration_token available - skipping registration"
-    
-    if not config.get("agent_id"):
-        logging.error("Registration aborted: no agent_id in config")
-        return False, "Missing agent_id"
+    api_base = (cfg.get("api_base") or "").rstrip("/")
+    url = f"{api_base}/register"
 
+    payload = {
+        "registration_token": cfg.get("registration_token"),
+        "agent_id": cfg.get("agent_id"),
+        # keep your existing payload fields here (hostname/os/mac/ip/version/etc)
+    }
+
+    resp = None
+    status_code = None
+    body = ""
+
+    try:
+        logger.info(f"Attempting registration to: {url}")
+        resp = requests.post(url, json=payload, timeout=20)
+        status_code = resp.status_code
+        body = resp.text or ""
+
+        if not resp.ok:
+            logger.error(f"Registration HTTP {status_code}: {body}")
+            resp.raise_for_status()
+
+        data = resp.json() if body else {}
+        data_obj = data.get("data", data)
+
+        new_agent_id = data_obj.get("agent_id") or cfg.get("agent_id")
+        account_id = data_obj.get("account_id")
+        endpoint_id = data_obj.get("endpoint_id")
+        installation_instance_id = data_obj.get("installation_instance_id")
+
+        missing = []
+        if not new_agent_id: missing.append("agent_id")
+        if not account_id: missing.append("account_id")
+        if not endpoint_id: missing.append("endpoint_id")
+        if not installation_instance_id: missing.append("installation_instance_id")
+
+        if missing:
+            msg = f"Registration response missing required fields: {', '.join(missing)}"
+            logger.error(f"{msg}. body={body}")
+            return False, msg
+
+        cfg["agent_id"] = new_agent_id
+        cfg["account_id"] = account_id
+        cfg["endpoint_id"] = endpoint_id
+        cfg["installation_instance_id"] = installation_instance_id
+        _save_config(config_path, cfg)
+
+        logger.info(
+            "Registration successful: "
+            f"agent_id={new_agent_id}, account_id={account_id}, "
+            f"endpoint_id={endpoint_id}, installation_instance_id={installation_instance_id}"
+        )
+        return True, "registered"
+
+    except Exception as e:
+        logger.exception(
+            f"Registration failed: {e}; status={status_code}; body={body}; url={url}"
+        )
+        return False, str(e)
     def _os_version():
         # mac/linux: prefer uname.release; windows: use platform helpers since sys.getwindowsversion may differ
         try:
@@ -970,144 +878,57 @@ def register(config):
         return False, str(exc)
 
 
-def heartbeat(config):
-    local_ip, mac = get_network_info()
-    public_ip = get_public_ip()
-    agent_id = config.get("agent_id") or None
-    account_id = config.get("account_id") or None
-    endpoint_id = config.get("endpoint_id") or None
+def heartbeat(config_path):
+    cfg = _load_config(config_path)
 
-    if not agent_id:
-        logging.error("Heartbeat failed: missing agent_id")
-        return False, "Missing agent_id"
+    api_base = (cfg.get("api_base") or "").rstrip("/")
+    url = f"{api_base}/heartbeat"
+
+    agent_id = cfg.get("agent_id")
+    account_id = cfg.get("account_id")
+    endpoint_id = cfg.get("endpoint_id")
+    installation_instance_id = cfg.get("installation_instance_id")
+
+    missing = []
+    if not agent_id: missing.append("agent_id")
+    if not account_id: missing.append("account_id")
+    if not endpoint_id: missing.append("endpoint_id")
+    if not installation_instance_id: missing.append("installation_instance_id")
+
+    if missing:
+        msg = f"Heartbeat skipped: missing required fields: {', '.join(missing)}"
+        logger.warning(msg)
+        return False, msg
 
     payload = {
         "agent_id": agent_id,
-        "endpoint_id": endpoint_id,
         "account_id": account_id,
-        "agent_version": AGENT_VERSION,
-        "status": "online",
-        "system_info": {
-            "os": (
-                "macos"
-                if sys.platform == "darwin"
-                else ("windows" if os.name == "nt" else "linux")
-            ),
-            "hostname": (
-                os.uname().nodename
-                if hasattr(os, "uname")
-                else os.environ.get("COMPUTERNAME") or "unknown"
-            ),
-            "agent_version": AGENT_VERSION,
-            "ip": local_ip,
-            "local_ip": local_ip,
-            "public_ip": public_ip,
-            "mac": mac,
-        },
+        "endpoint_id": endpoint_id,
+        "installation_instance_id": installation_instance_id,
+        # keep existing heartbeat fields here (status/version/local_ip/public_ip/mac/etc)
     }
 
+    resp = None
+    status_code = None
+    body = ""
+
     try:
-        url = f"{config['api_base']}/heartbeat"
-        logging.debug("Sending heartbeat to %s", url)
-        logging.info(
-            "Endpoint network info: local_ip=%s public_ip=%s",
-            local_ip,
-            public_ip
-        )
-        logging.debug(
-            "Heartbeat payload: agent_id=%s account_id=%s local_ip=%s public_ip=%s",
-            agent_id,
-            account_id,
-            local_ip,
-            public_ip,
-        )
+        resp = requests.post(url, json=payload, timeout=20)
+        status_code = resp.status_code
+        body = resp.text or ""
 
-        resp = requests.post(url, json=payload, timeout=15)
-
-        if resp.status_code >= 400:
-            try:
-                body = resp.json()
-                error_msg = body.get("error", resp.text)
-            except Exception:
-                error_msg = resp.text
-
-            logging.error(
-                "Heartbeat HTTP %s: %s",
-                resp.status_code,
-                error_msg
-            )
+        if not resp.ok:
+            logger.error(f"Heartbeat HTTP {status_code}: {body}")
             resp.raise_for_status()
 
-        logging.info(
-            "Heartbeat successful (HTTP %s)",
-            resp.status_code
+        logger.info("Heartbeat successful")
+        return True, "ok"
+
+    except Exception as e:
+        logger.exception(
+            f"Heartbeat failed: {e}; status={status_code}; body={body}; url={url}"
         )
-        return True, resp.json()
-
-    except Exception as exc:
-        logging.exception("Heartbeat failed: %s", exc)
-
-        try:
-            status = (
-                exc.response.status_code
-                if hasattr(exc, "response") and exc.response is not None
-                else None
-            )
-        except Exception:
-            status = None
-
-        if status == 404:
-            logging.warning("Heartbeat 404: attempting re-registration")
-
-            ok_reg, res_reg = register(config)
-
-            logging.info(
-                "Re-register result after 404: ok=%s res=%s",
-                ok_reg,
-                res_reg
-            )
-
-            if ok_reg:
-                try:
-                    logging.info(
-                        "Retrying heartbeat after re-registration..."
-                    )
-
-                    retry_payload = {
-                        **payload,
-                        "endpoint_id": (
-                            config.get("endpoint_id")
-                            or payload.get("endpoint_id")
-                        ),
-                        "account_id": (
-                            config.get("account_id")
-                            or payload.get("account_id")
-                        ),
-                    }
-
-                    resp_retry = requests.post(
-                        url,
-                        json=retry_payload,
-                        timeout=15
-                    )
-
-                    if resp_retry.status_code < 400:
-                        return True, resp_retry.json()
-
-                    logging.error(
-                        "Retry heartbeat HTTP %s: %s",
-                        resp_retry.status_code,
-                        resp_retry.text
-                    )
-
-                except Exception as exc_retry:
-                    logging.exception(
-                        "Retry heartbeat failed: %s",
-                        exc_retry
-                    )
-
-        return False, str(exc)
-
+        return False, str(e)
 def check_pending_scan_commands(config):
     """Check if there are any pending scan commands from the console"""
     agent_id = config.get("agent_id")
