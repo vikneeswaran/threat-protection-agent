@@ -58,8 +58,8 @@ param(
 $ErrorActionPreference = "Continue"
 $VerbosePreference = "SilentlyContinue"
 
-$script:API_BASE_URL = "https://kuaminisystems.com/api/agent"
-$script:MSI_DOWNLOAD_URL = "https://kuaminisystems.com/api/agent/installers/windows"
+$script:API_BASE_URL = "https://kuaminisystems.com/api/securityagent/agent"
+$script:MSI_DOWNLOAD_URL = "https://kuaminisystems.com/api/securityagent/installers/windows"
 $script:MSI_TEMP_DIR = Join-Path $env:TEMP "kuamini-install-$(Get-Random)"
 $script:CONFIG_DIR = Join-Path $env:LOCALAPPDATA "KuaminiSecurityClient"
 $script:CONFIG_FILE = Join-Path $script:CONFIG_DIR "config.json"
@@ -209,13 +209,17 @@ function Get-InstallerMSI {
         # Build download URL with token
         $downloadUrl = "$($script:MSI_DOWNLOAD_URL)?token=$([System.Web.HttpUtility]::UrlEncode($Token))"
         
-        $msiPath = Join-Path $script:MSI_TEMP_DIR "KuaminiSecurityClient.msi"
+        $packagePath = Join-Path $script:MSI_TEMP_DIR "KuaminiSecurityClient.zip"
+        $extractPath = Join-Path $script:MSI_TEMP_DIR "package"
         
         Write-Log "Downloading from: $($script:MSI_DOWNLOAD_URL)" "INFO"
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $msiPath -TimeoutSec 60 -ErrorAction Stop
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $packagePath -TimeoutSec 60 -ErrorAction Stop
+        Expand-Archive -Path $packagePath -DestinationPath $extractPath -Force
+        $msiPath = Get-ChildItem -Path $extractPath -Filter "KuaminiSecurityClient-*.msi" -Recurse -File |
+            Select-Object -First 1 -ExpandProperty FullName
         
-        if (-not (Test-Path $msiPath)) {
-            Write-ErrorLog "MSI file not found after download"
+        if (-not $msiPath -or -not (Test-Path $msiPath)) {
+            Write-ErrorLog "MSI file not found in downloaded installer package"
             return $null
         }
         

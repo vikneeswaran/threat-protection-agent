@@ -779,11 +779,18 @@ def register(config):
         config_path = config
         cfg = _load_config(config_path)
 
+    local_ip, mac = get_network_info()
     payload = {
         "registration_token": cfg.get("registration_token"),
         "installationToken": cfg.get("registration_token"),
         "agent_id": cfg.get("agent_id"),
-        # keep existing payload fields (hostname/os/mac/ip/version/etc)
+        "installerVersion": AGENT_VERSION,
+        "platform": "Windows" if os.name == "nt" else ("macOS" if sys.platform == "darwin" else "Linux"),
+        "hostname": socket.gethostname(),
+        "os": "windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux"),
+        "local_ip": local_ip,
+        "mac_address": mac,
+        "public_ip": get_public_ip(),
     }
 
     resp = None

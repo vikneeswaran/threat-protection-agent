@@ -57,6 +57,7 @@ param(
 # ============================================================================
 
 $script:API_BASE_URL = "https://kuaminisystems.com/api/securityagent/agent"
+$script:INSTALLER_API_URL = "https://kuaminisystems.com/api/securityagent/installers"
 $script:MSI_TEMP_DIR = Join-Path $env:TEMP "kuamini-install-$(Get-Random)"
 $script:CONFIG_DIR = Join-Path $env:LOCALAPPDATA "KuaminiSecurityClient"
 $script:CONFIG_FILE = Join-Path $script:CONFIG_DIR "config.json"
@@ -174,15 +175,19 @@ function Get-InstallerMSI {
     try {
         # Download MSI from API endpoint
         # API will embed the token and account details
-        $downloadUrl = "$($script:API_BASE_URL)/installers/windows?token=$([Uri]::EscapeDataString($Token))"
-        $msiPath = Join-Path $script:MSI_TEMP_DIR "KuaminiSecurityClient.msi"
+        $downloadUrl = "$($script:INSTALLER_API_URL)/windows?token=$([Uri]::EscapeDataString($Token))"
+        $packagePath = Join-Path $script:MSI_TEMP_DIR "KuaminiSecurityClient.zip"
+        $extractPath = Join-Path $script:MSI_TEMP_DIR "package"
         
         Write-Log "Download URL: $downloadUrl" "INFO"
         
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $msiPath -TimeoutSec 300 -ErrorAction Stop
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $packagePath -TimeoutSec 300 -ErrorAction Stop
+        Expand-Archive -Path $packagePath -DestinationPath $extractPath -Force
+        $msiPath = Get-ChildItem -Path $extractPath -Filter "KuaminiSecurityClient-*.msi" -Recurse -File |
+            Select-Object -First 1 -ExpandProperty FullName
         
-        if (-not (Test-Path $msiPath)) {
-            throw "MSI file not created after download"
+        if (-not $msiPath -or -not (Test-Path $msiPath)) {
+            throw "MSI file not found in downloaded installer package"
         }
         
         $fileSize = (Get-Item $msiPath).Length / 1MB
@@ -411,7 +416,7 @@ function Main {
     
     # Step 3: Download MSI
     Write-Host ""
-    $msiPath = Get-InstallerMSI -ApiUrl "$($script:API_BASE_URL)/installers/windows"
+    $msiPath = Get-InstallerMSI -ApiUrl "$($script:INSTALLER_API_URL)/windows"
     if (-not $msiPath) {
         exit 1
     }

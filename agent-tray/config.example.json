@@ -1,5 +1,5 @@
 {
-  "api_base": "https://kuaminisystems.com/api/agent",
+  "api_base": "https://kuaminisystems.com/api/securityagent/agent",
   "registration_token": "<BASE64_TOKEN>",
   "agent_id": "<GENERATED_AGENT_ID>",
   "account_id": "<ACCOUNT_ID>",
