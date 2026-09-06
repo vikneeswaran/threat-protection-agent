@@ -56,7 +56,7 @@ param(
 # CONFIGURATION
 # ============================================================================
 
-$script:API_BASE_URL = "https://kuaminisystems.com/api/agent"
+$script:API_BASE_URL = "https://kuaminisystems.com/api/securityagent/agent"
 $script:MSI_TEMP_DIR = Join-Path $env:TEMP "kuamini-install-$(Get-Random)"
 $script:CONFIG_DIR = Join-Path $env:LOCALAPPDATA "KuaminiSecurityClient"
 $script:CONFIG_FILE = Join-Path $script:CONFIG_DIR "config.json"

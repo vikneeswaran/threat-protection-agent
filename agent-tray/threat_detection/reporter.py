@@ -4,13 +4,11 @@ Handles communication with the management API to report detected threats
 """
 
 import logging
-import json
 from typing import Dict, List, Optional, Tuple
 import requests
 from datetime import datetime
 
 from .engine import ThreatReport
-
 
 class ThreatReporter:
     """Handles threat reporting to management API"""

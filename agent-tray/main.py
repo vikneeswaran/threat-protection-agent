@@ -15,6 +15,7 @@ from typing import Tuple
 from urllib.parse import urlparse
 import uuid
 import logging
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,106 @@ def get_log_path() -> Path:
         # fallback to current directory
         return Path("agent.log")
 
+def heartbeat(config):
+    """
+    Send heartbeat using current runtime config.
+    Accepts either:
+      - dict config (preferred)
+      - config path (legacy compatibility)
+    """
+    if isinstance(config, dict):
+        cfg = config
+    else:
+        cfg = _load_config(config)
+
+    agent_id = cfg.get("agent_id")
+    account_id = cfg.get("account_id")
+    endpoint_id = cfg.get("endpoint_id")
+    installation_instance_id = cfg.get("installation_instance_id")
+
+    missing = []
+    if not agent_id:
+        missing.append("agent_id")
+    if not account_id:
+        missing.append("account_id")
+    if not endpoint_id:
+        missing.append("endpoint_id")
+    if not installation_instance_id:
+        missing.append("installation_instance_id")
+
+    if missing:
+        msg = f"Heartbeat skipped: missing required fields: {', '.join(missing)}"
+        logger.warning(msg)
+        return False, msg
+
+    # IMPORTANT: build absolute URL via helper
+    heartbeat_url = build_api_url(cfg, "heartbeat")
+
+    payload = {
+        "agent_id": agent_id,
+        "account_id": account_id,
+        "endpoint_id": endpoint_id,
+        "installation_instance_id": installation_instance_id,
+        # keep your existing extra fields (status/version/local_ip/public_ip/mac/etc)
+    }
+
+    resp = None
+    status_code = None
+    body = ""
+
+    try:
+        resp = requests.post(heartbeat_url, json=payload, timeout=20)
+        status_code = resp.status_code
+        body = resp.text or ""
+
+        if not resp.ok:
+            logger.error("Heartbeat HTTP %s: %s", status_code, body)
+            resp.raise_for_status()
+
+        logger.info("Heartbeat successful")
+        return True, "ok"
+
+    except Exception as e:
+        logger.exception(
+            "Heartbeat failed: %s; status=%s; body=%s; url=%s",
+            e, status_code, body, heartbeat_url
+        )
+        return False, str(e)
+
+
+def build_api_url(config: dict, endpoint_path: str) -> str:
+    """
+    Build absolute API URL from config and endpoint path.
+    Supports:
+      - api_base (full agent API base, e.g. https://host/api/securityagent/agent)
+      - server_url / api_base_url / backend_url (host-level base)
+    """
+    api_base = str(config.get("api_base") or "").strip()
+    if api_base:
+        if not api_base.startswith(("http://", "https://")):
+            api_base = "https://" + api_base
+        return urljoin(api_base.rstrip("/") + "/", endpoint_path.lstrip("/"))
+
+    base = (
+        str(config.get("server_url") or "").strip()
+        or str(config.get("api_base_url") or "").strip()
+        or str(config.get("backend_url") or "").strip()
+    )
+
+    if not base:
+        raise ValueError(
+            "Missing API base URL. Set 'api_base' or one of: server_url, api_base_url, backend_url"
+        )
+
+    if not base.startswith(("http://", "https://")):
+        base = "https://" + base
+
+    parsed = urlparse(base)
+    base_path = (parsed.path or "").rstrip("/")
+    if not base_path:
+        base = base.rstrip("/") + "/api/securityagent/agent"
+
+    return urljoin(base.rstrip("/") + "/", endpoint_path.lstrip("/"))
 
 def setup_ca_bundle():
     """Configure CA bundle path for requests library in PyInstaller bundled apps."""
@@ -669,39 +770,49 @@ def get_public_ip(force_refresh: bool = False) -> str | None:
     return _public_ip_cache_value
 
 
-def register(config_path):
-    cfg = _load_config(config_path)
-
-    api_base = (cfg.get("api_base") or "").rstrip("/")
-    url = f"{api_base}/register"
+def register(config):
+    # Accept dict or config path
+    if isinstance(config, dict):
+        cfg = config
+        config_path = get_config_path()
+    else:
+        config_path = config
+        cfg = _load_config(config_path)
 
     payload = {
         "registration_token": cfg.get("registration_token"),
+        "installationToken": cfg.get("registration_token"),
         "agent_id": cfg.get("agent_id"),
-        # keep your existing payload fields here (hostname/os/mac/ip/version/etc)
+        # keep existing payload fields (hostname/os/mac/ip/version/etc)
     }
 
     resp = None
     status_code = None
     body = ""
+    register_url = None
 
     try:
-        logger.info(f"Attempting registration to: {url}")
-        resp = requests.post(url, json=payload, timeout=20)
+        register_url = build_api_url(cfg, "register")
+        logger.info("Attempting registration to: %s", register_url)
+
+        resp = requests.post(register_url, json=payload, timeout=20)
         status_code = resp.status_code
         body = resp.text or ""
 
         if not resp.ok:
-            logger.error(f"Registration HTTP {status_code}: {body}")
+            logger.error("Registration HTTP %s: %s", status_code, body)
             resp.raise_for_status()
 
         data = resp.json() if body else {}
         data_obj = data.get("data", data)
 
-        new_agent_id = data_obj.get("agent_id") or cfg.get("agent_id")
-        account_id = data_obj.get("account_id")
-        endpoint_id = data_obj.get("endpoint_id")
-        installation_instance_id = data_obj.get("installation_instance_id")
+        new_agent_id = data_obj.get("agent_id") or data_obj.get("agentId") or cfg.get("agent_id")
+        account_id = data_obj.get("account_id") or data_obj.get("accountId")
+        endpoint_id = data_obj.get("endpoint_id") or data_obj.get("endpointId")
+        installation_instance_id = (
+            data_obj.get("installation_instance_id")
+            or data_obj.get("installationInstanceId")
+        )
 
         missing = []
         if not new_agent_id: missing.append("agent_id")
@@ -711,233 +822,38 @@ def register(config_path):
 
         if missing:
             msg = f"Registration response missing required fields: {', '.join(missing)}"
-            logger.error(f"{msg}. body={body}")
+            logger.error("%s. body=%s", msg, body)
             return False, msg
 
         cfg["agent_id"] = new_agent_id
         cfg["account_id"] = account_id
         cfg["endpoint_id"] = endpoint_id
         cfg["installation_instance_id"] = installation_instance_id
+
         _save_config(config_path, cfg)
 
+        # Keep in-memory dict synced if caller passed dict
+        if isinstance(config, dict):
+            config.update({
+                "agent_id": new_agent_id,
+                "account_id": account_id,
+                "endpoint_id": endpoint_id,
+                "installation_instance_id": installation_instance_id,
+            })
+
         logger.info(
-            "Registration successful: "
-            f"agent_id={new_agent_id}, account_id={account_id}, "
-            f"endpoint_id={endpoint_id}, installation_instance_id={installation_instance_id}"
+            "Registration successful: agent_id=%s, account_id=%s, endpoint_id=%s, installation_instance_id=%s",
+            new_agent_id, account_id, endpoint_id, installation_instance_id
         )
-        return True, "registered"
+        return True, data_obj
 
     except Exception as e:
         logger.exception(
-            f"Registration failed: {e}; status={status_code}; body={body}; url={url}"
+            "Registration failed: %s; status=%s; body=%s; url=%s",
+            e, status_code, body, register_url
         )
         return False, str(e)
-    def _os_version():
-        # mac/linux: prefer uname.release; windows: use platform helpers since sys.getwindowsversion may differ
-        try:
-            if hasattr(os, "uname"):
-                return os.uname().release
-            if os.name == "nt":
-                import platform
-                return platform.release() or platform.version() or "windows"
-        except Exception as exc:
-            logging.debug("Could not resolve os_version: %s", exc)
-        return "unknown"
 
-    local_ip, mac = get_network_info()
-    public_ip = get_public_ip()
-
-    payload = {
-        "installationToken": config.get("registration_token"),
-        "installerVersion": AGENT_VERSION,
-        "platform": "Windows" if os.name == "nt" else (
-            "macOS" if sys.platform == "darwin" else "Linux"
-        ),
-    }
-    try:
-        api_url = config.get('api_base') or "https://kuaminisystems.com/api/securityagent/agent"
-        register_url = f"{api_url}/register"
-        logging.info("Attempting registration to: %s", register_url)
-        logging.debug("Registration payload: %s", {k: v if k != 'token' else '***' for k, v in payload.items()})
-        
-        resp = requests.post(register_url, json=payload, timeout=10)
-        installation_instance_id = (
-            body.get("installationInstanceId")
-            or body.get("installation_instance_id")
-        )
-
-        if installation_instance_id:
-            config["installation_instance_id"] = installation_instance_id
-
-        endpoint_id = body.get("endpoint_id") or body.get("endpointId")
-        if endpoint_id:
-            config["endpoint_id"] = endpoint_id
-            account_id = body.get("account_id") or body.get("accountId")
-        if account_id:
-            config["account_id"] = account_id
-
-        save_config(config)
-        logging.info("Registration response status: %s", resp.status_code)
-        
-        if resp.status_code >= 400:
-            try:
-                error_detail = resp.json().get("error") or resp.text
-            except:
-                error_detail = resp.text
-            logging.error("Registration HTTP %s: %s", resp.status_code, error_detail)
-            return False, f"HTTP {resp.status_code}: {error_detail}"
-        
-        logging.info("Registration response: %s", resp.text[:200])
-        resp.raise_for_status()
-
-        # Persist registration response fields
-        try:
-            body = resp.json()
-
-            installation_instance_id = (
-                body.get("installationInstanceId")
-                or body.get("installation_instance_id")
-            )
-
-            if installation_instance_id:
-                config["installation_instance_id"] = installation_instance_id
-                logging.info(
-                    "Persisted installation_instance_id: %s",
-                    installation_instance_id
-                )
-
-            endpoint_id = body.get("endpoint_id") or body.get("endpointId")
-            if endpoint_id:
-                config["endpoint_id"] = endpoint_id
-                logging.info(
-                    "Persisted endpoint_id: %s",
-                    endpoint_id
-                )
-
-            account_id = body.get("account_id") or body.get("accountId")
-            if account_id:
-                config["account_id"] = account_id
-                logging.info(
-                    "Persisted account_id: %s",
-                    account_id
-                )
-
-            save_config(config)
-
-            # Save installation instance ID returned by registration API
-            installation_instance_id = (
-                body.get("installationInstanceId")
-                or body.get("installation_instance_id")
-            )
-
-            if installation_instance_id:
-                config["installation_instance_id"] = installation_instance_id
-                logging.info(
-                    "Persisted installation_instance_id: %s",
-                    installation_instance_id
-                )
-
-            # Save endpoint ID if API returns it
-            endpoint_id = (
-                body.get("endpoint_id")
-                or body.get("endpointId")
-            )
-
-            if endpoint_id:
-                config["endpoint_id"] = endpoint_id
-                logging.info(
-                    "Persisted endpoint_id: %s",
-                    endpoint_id
-                )
-
-            # Save account ID if API returns it
-            account_id = (
-                body.get("account_id")
-                or body.get("accountId")
-            )
-
-            if account_id:
-                config["account_id"] = account_id
-                logging.info(
-                    "Persisted account_id from response: %s",
-                    account_id
-                )
-
-            save_config(config)
-
-        except Exception as e:
-            logging.warning(
-                "Could not persist registration response fields: %s",
-                e
-            )
-
-        # Persist account_id if missing, derived from token
-        if not config.get("account_id") and config.get("registration_token"):
-            derived = _decode_account_id_from_token(config.get("registration_token"))
-            if derived:
-                config["account_id"] = derived
-                try:
-                    save_config(config)
-                    logging.info("Persisted account_id from token after register: %s", derived)
-                except Exception as e:
-                    logging.warning("Failed to save derived account_id after register: %s", e)
-        return True, resp.json()
-    except Exception as exc:
-        logging.error("Registration failed: %s", exc, exc_info=True)
-        return False, str(exc)
-
-
-def heartbeat(config_path):
-    cfg = _load_config(config_path)
-
-    api_base = (cfg.get("api_base") or "").rstrip("/")
-    url = f"{api_base}/heartbeat"
-
-    agent_id = cfg.get("agent_id")
-    account_id = cfg.get("account_id")
-    endpoint_id = cfg.get("endpoint_id")
-    installation_instance_id = cfg.get("installation_instance_id")
-
-    missing = []
-    if not agent_id: missing.append("agent_id")
-    if not account_id: missing.append("account_id")
-    if not endpoint_id: missing.append("endpoint_id")
-    if not installation_instance_id: missing.append("installation_instance_id")
-
-    if missing:
-        msg = f"Heartbeat skipped: missing required fields: {', '.join(missing)}"
-        logger.warning(msg)
-        return False, msg
-
-    payload = {
-        "agent_id": agent_id,
-        "account_id": account_id,
-        "endpoint_id": endpoint_id,
-        "installation_instance_id": installation_instance_id,
-        # keep existing heartbeat fields here (status/version/local_ip/public_ip/mac/etc)
-    }
-
-    resp = None
-    status_code = None
-    body = ""
-
-    try:
-        resp = requests.post(url, json=payload, timeout=20)
-        status_code = resp.status_code
-        body = resp.text or ""
-
-        if not resp.ok:
-            logger.error(f"Heartbeat HTTP {status_code}: {body}")
-            resp.raise_for_status()
-
-        logger.info("Heartbeat successful")
-        return True, "ok"
-
-    except Exception as e:
-        logger.exception(
-            f"Heartbeat failed: {e}; status={status_code}; body={body}; url={url}"
-        )
-        return False, str(e)
 def check_pending_scan_commands(config):
     """Check if there are any pending scan commands from the console"""
     agent_id = config.get("agent_id")
@@ -947,11 +863,14 @@ def check_pending_scan_commands(config):
         return None, "Missing agent_id or account_id"
     
     try:
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
-        url = f"{api_url}/scan-commands?agent_id={agent_id}&account_id={account_id}"
+        url = build_api_url(config, "scan-commands")
         logging.debug("Checking for pending scan commands")
-        
-        resp = requests.get(url, timeout=10)
+
+        resp = requests.get(
+            url,
+            params={"agent_id": agent_id, "account_id": account_id},
+            timeout=10,
+        )
         if resp.status_code >= 400:
             logging.debug("Scan command check HTTP %s", resp.status_code)
             return None, f"HTTP {resp.status_code}"
@@ -965,17 +884,15 @@ def check_pending_scan_commands(config):
         return None, str(e)
 
 
-def report_scan_command_result(config, command_id: str, scan_id: str, scan_type: str, 
-                               total_threats: int, severity_breakdown: dict, 
+def report_scan_command_result(config, command_id: str, scan_id: str, scan_type: str,
+                               total_threats: int, severity_breakdown: dict,
                                status: str = "completed", error_message: str = None) -> Tuple[bool, str]:
-    """Report the result of a scan command execution"""
     agent_id = config.get("agent_id")
     account_id = config.get("account_id")
-    endpoint_id = config.get("endpoint_id")
-    
+
     if not all([agent_id, account_id, command_id]):
         return False, "Missing required config fields"
-    
+
     try:
         payload = {
             "agent_id": agent_id,
@@ -988,22 +905,20 @@ def report_scan_command_result(config, command_id: str, scan_id: str, scan_type:
             "status": status,
             "error_message": error_message,
         }
-        
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
-        url = f"{api_url}/scan-commands-result"
-        logging.info(f"Reporting scan command result: command_id={command_id}, threats={total_threats}")
-        
+
+        url = build_api_url(config, "scan-commands-result")
+        logging.info("Reporting scan command result: command_id=%s, threats=%s", command_id, total_threats)
+
         resp = requests.post(url, json=payload, timeout=15)
         if resp.status_code >= 400:
-            logging.error(f"Scan command result report failed HTTP {resp.status_code}")
+            logging.error("Scan command result report failed HTTP %s: %s", resp.status_code, resp.text)
             return False, f"HTTP {resp.status_code}"
-        
-        logging.info(f"? Scan command result reported successfully")
+
+        logging.info("Scan command result reported successfully")
         return True, "Success"
     except Exception as e:
-        logging.error(f"Error reporting scan command result: {e}")
+        logging.error("Error reporting scan command result: %s", e, exc_info=True)
         return False, str(e)
-
 
 def check_pending_threat_action_commands(config):
     """Check if there are pending threat remediation commands from the console."""
@@ -1014,11 +929,14 @@ def check_pending_threat_action_commands(config):
         return None, "Missing agent_id or account_id"
 
     try:
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
-        url = f"{api_url}/threat-action-commands?agent_id={agent_id}&account_id={account_id}"
+        url = build_api_url(config, "threat-action-commands")
         logging.debug("Checking for pending threat action commands")
 
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(
+            url,
+            params={"agent_id": agent_id, "account_id": account_id},
+            timeout=10,
+        )
         if resp.status_code >= 400:
             logging.debug("Threat action command check HTTP %s", resp.status_code)
             return None, f"HTTP {resp.status_code}"
@@ -1039,7 +957,6 @@ def report_threat_action_command_result(
     error_message: str = None,
     result_details: dict | None = None,
 ) -> Tuple[bool, str]:
-    """Report the result of a threat action command execution."""
     agent_id = config.get("agent_id")
     account_id = config.get("account_id")
 
@@ -1056,19 +973,42 @@ def report_threat_action_command_result(
             "result_details": result_details or {},
         }
 
-        api_url = config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent")
-        url = f"{api_url}/threat-action-commands-result"
-
+        url = build_api_url(config, "threat-action-commands-result")
         resp = requests.post(url, json=payload, timeout=15)
         if resp.status_code >= 400:
-            logging.error("Threat action command result report failed HTTP %s", resp.status_code)
+            logging.error("Threat action command result report failed HTTP %s: %s", resp.status_code, resp.text)
             return False, f"HTTP {resp.status_code}"
 
-        logging.info("? Threat action command result reported: command_id=%s status=%s", command_id, status)
+        logging.info("Threat action command result reported: command_id=%s status=%s", command_id, status)
         return True, "Success"
     except Exception as e:
-        logging.error("Error reporting threat action command result: %s", e)
+        logging.error("Error reporting threat action command result: %s", e, exc_info=True)
         return False, str(e)
+
+def heartbeat_loop():
+    interval = int(config.get("heartbeat_interval") or DEFAULT_HEARTBEAT_INTERVAL)
+
+    # Initial registration
+    logging.info("Attempting initial registration...")
+    ok, res = register(config)
+    if ok:
+        logging.info("Initial registration successful: %s", res)
+    else:
+        logging.warning("Initial registration failed: %s", res)
+
+    # Heartbeat loop
+    while not stop_event.is_set():
+        try:
+            ok, hb_res = heartbeat(config)
+            if ok and isinstance(hb_res, dict):
+                apply_threat_policies(hb_res.get("policies"))
+                _apply_update_info(hb_res.get("agent_update"))
+            if not ok:
+                logging.warning("Heartbeat failed, will retry")
+        except Exception as e:
+            logging.error("Heartbeat error: %s", e, exc_info=True)
+
+        stop_event.wait(interval)
 
 
 def initialize_threat_detection(config: dict, log_callback=None) -> dict:
@@ -1077,7 +1017,7 @@ def initialize_threat_detection(config: dict, log_callback=None) -> dict:
 
         engine = ThreatDetectionEngine(log_callback=log_callback)
         reporter = ThreatReporter(
-            api_base_url=config.get("api_base", "https://kuaminisystems.com/api/securityagent/agent"),
+            api_base_url=build_api_url(config, ""),
             agent_id=config.get("agent_id"),
             account_id=config.get("account_id"),
             log_callback=log_callback,
@@ -1105,6 +1045,8 @@ def tray_main():
         config = load_config()
         try:
             logging.info("Resolved config path: %s", get_config_path())
+            logging.info("Configured api_base: %s", config.get("api_base"))
+            logging.info("Configured server_url: %s", config.get("server_url"))
         except Exception:
             pass
         logging.info("Config loaded successfully in tray_main")
@@ -1365,15 +1307,6 @@ def tray_main():
         stop_event.set()
         icon.stop()
 
-    def heartbeat_loop():
-        interval = int(config.get("heartbeat_interval") or DEFAULT_HEARTBEAT_INTERVAL)
-        while not stop_event.is_set():
-            ok, res = heartbeat(config)
-            if ok and isinstance(res, dict):
-                apply_threat_policies(res.get("policies"))
-                _apply_update_info(res.get("agent_update"))
-            set_status("Online" if ok else "Heartbeat failed", (46, 204, 113) if ok else (231, 76, 60))
-            stop_event.wait(interval)
 
     def _execute_action_for_threat(action: str, threat: dict) -> Tuple[bool, str]:
         action = action.lower()
@@ -1900,11 +1833,6 @@ def tray_main():
         logging.info("Register result: ok=%s, res=%s", ok, res)
         set_status("Registered" if ok else "Register failed", (46, 204, 113) if ok else (231, 76, 60))
 
-    def do_heartbeat(icon_, item):
-        ok, res = heartbeat(config)
-        logging.info("Heartbeat result: ok=%s, res=%s", ok, res)
-        set_status("Online" if ok else "Heartbeat failed", (46, 204, 113) if ok else (231, 76, 60))
-
     def open_console(icon_, item):
         url = config.get("console_url", "https://kuaminisystems.com/securityAgent")
         logging.info("Opening console: %s", url)
@@ -1914,15 +1842,6 @@ def tray_main():
         stop_event.set()
         icon.stop()
 
-    def heartbeat_loop():
-        interval = int(config.get("heartbeat_interval") or DEFAULT_HEARTBEAT_INTERVAL)
-        while not stop_event.is_set():
-            ok, res = heartbeat(config)
-            if ok and isinstance(res, dict):
-                apply_threat_policies(res.get("policies"))
-                _apply_update_info(res.get("agent_update"))
-            set_status("Online" if ok else "Heartbeat failed", (46, 204, 113) if ok else (231, 76, 60))
-            stop_event.wait(interval)
 
     def _execute_action_for_threat(action: str, threat: dict) -> Tuple[bool, str]:
         action = action.lower()
@@ -2261,57 +2180,7 @@ def background_agent_mode(config):
     
     stop_event = threading.Event()
     
-    def heartbeat_loop():
-        interval = int(config.get("heartbeat_interval") or DEFAULT_HEARTBEAT_INTERVAL)
-        
-        # Initial registration
-        logging.info("Attempting initial registration...")
-        ok, res = register(config)
-        if ok:
-            logging.info("? Initial registration successful: %s", res)
-        else:
-            logging.warning("? Initial registration failed: %s", res)
-        
-        # Heartbeat loop
-        while not stop_event.is_set():
-            try:
-                ok, _ = heartbeat(config)
-                if not ok:
-                    logging.warning("Heartbeat failed, will retry")
-            except Exception as e:
-                logging.error("Heartbeat error: %s", e)
-            
-            # Wait for next interval
-            stop_event.wait(interval)
-    
-    # Start heartbeat thread
-    hb_thread = threading.Thread(target=heartbeat_loop, daemon=False)
-    hb_thread.start()
-    
-    logging.info("? Agent started successfully (background mode)")
-    logging.info("? Agent ID: %s", config.get('agent_id', 'unknown'))
-    logging.info("? API Base: %s", config.get('api_base'))
-    
-    # Keep the main thread alive
-    try:
-        while not stop_event.is_set():
-            stop_event.wait(1)
-    except KeyboardInterrupt:
-        logging.info("Received shutdown signal")
-        stop_event.set()
-        hb_thread.join(timeout=5)
 
-
-if __name__ == "__main__":
-    def safe_print(msg: str):
-        stream = sys.stderr or sys.stdout
-        if stream is None:
-            return
-        print(msg, file=stream)
-        try:
-            stream.flush()
-        except Exception:
-            pass
     
     def log_to_emergency_file(msg: str):
         """Write to emergency log file even if regular logging fails."""
