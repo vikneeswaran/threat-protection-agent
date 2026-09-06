@@ -426,14 +426,23 @@ def _decode_account_id_from_token(token: str | None) -> str | None:
 
 
 def _load_config(config_path):
-    # Preserve existing robust config discovery/BOM handling logic
-    # instead of reading directly from disk.
+    """
+    Load config from config_path with safe fallback.
+    """
     try:
-        return load_config()
+        if config_path and os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8-sig") as f:
+                return json.load(f) or {}
     except Exception:
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+        pass
+    return {}
+
+def load_config(config_path=None):
+    try:
+        if config_path is None:
+            config_path = get_config_path()   # or your actual helper
+        return _load_config(config_path)
+    except Exception:
         return {}
 
 
@@ -1092,7 +1101,16 @@ def tray_main():
     setup_logging()
     logging.info("Starting Kuamini Agent Tray")
 
-    config = load_config()
+    try:
+        config = load_config()
+        try:
+            logging.info("Resolved config path: %s", get_config_path())
+        except Exception:
+            pass
+        logging.info("Config loaded successfully in tray_main")
+    except Exception as e:
+        logging.error("Failed to load config in tray_main: %s", e, exc_info=True)
+        config = {}
     threat_system = initialize_threat_detection(config, log_callback=logging.info)
 
     status = {"text": "Idle", "color": (46, 204, 113)}
