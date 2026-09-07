@@ -39,8 +39,22 @@
           Name="KuaminiSecurityClient.exe"
           Source="$(var.SourceDir)\KuaminiSecurityClient.exe"
           KeyPath="yes" />
-
-    </Component>
+        <ServiceInstall Id="KuaminiSecurityClientServiceInstall"
+            Name="KuaminiSecurityClient"
+            DisplayName="Kuamini Security Client"
+            Description="Kuamini endpoint protection, threat detection, and reporting service."
+            Arguments="--service"
+            Start="auto"
+            Type="ownProcess"
+            ErrorControl="normal"
+            Vital="yes" />
+        <ServiceControl Id="KuaminiSecurityClientServiceControl"
+            Name="KuaminiSecurityClient"
+            Start="install"
+            Stop="both"
+            Remove="uninstall"
+            Wait="yes" />
+      </Component>
 
       <Component Id="RegistryAutoStart" Guid="99999999-8888-7777-6666-555555555555" Win64="yes">
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
@@ -49,6 +63,7 @@
                        Value="&quot;[INSTALLFOLDER]KuaminiSecurityClient.exe&quot;"
                        KeyPath="yes" />
       </Component>
+
     </DirectoryRef>
 
 

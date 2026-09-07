@@ -68,12 +68,28 @@ Account ID: {account_id or '(not provided)'}
         print(f"\n[ERROR] Version file not found at {version_file}")
         sys.exit(1)
 
+    version_parts = version.split(".")
+    if not all(part.isdigit() for part in version_parts) or len(version_parts) > 4:
+        print(f"\n[ERROR] AGENT_VERSION must be a numeric version, got: {version}")
+        sys.exit(1)
+    padded_version = (version_parts + ["0", "0", "0", "0"])[:4]
+    version_resource = (agent_dir / "build" / "version_info.generated.txt")
+    version_resource.parent.mkdir(parents=True, exist_ok=True)
+    version_resource.write_text(
+        version_file.read_text(encoding="utf-8")
+        .replace("{MAJOR}", padded_version[0])
+        .replace("{MINOR}", padded_version[1])
+        .replace("{PATCH}", padded_version[2])
+        .replace("{FULL_VERSION}", ".".join(padded_version)),
+        encoding="utf-8",
+    )
+
     pyinstaller_cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", "KuaminiSecurityClient",
         "--onedir",
         "--windowed",
-        "--version-file", str(version_file),
+        "--version-file", str(version_resource),
         "--distpath", str(agent_dir / "dist"),
         "--workpath", str(agent_dir / "build" / "pyinstaller"),
         "--specpath", str(script_dir),
@@ -82,6 +98,17 @@ Account ID: {account_id or '(not provided)'}
         "--add-data", str(agent_dir / "icon-green.png") + ";.",
         "--add-data", str(agent_dir / "icon-yellow.png") + ";.",
         "--add-data", str(agent_dir / "icon-red.png") + ";.",
+
+        "--hidden-import", "agent_service",
+        "--hidden-import", "threat_detection",
+        "--hidden-import", "threat_detection.engine",
+        "--hidden-import", "threat_detection.process_monitor",
+        "--hidden-import", "threat_detection.reporter",
+        "--hidden-import", "threat_detection.scanner",
+        "--hidden-import", "threat_detection.signatures",
+        "--hidden-import", "win32event",
+        "--hidden-import", "win32service",
+        "--hidden-import", "win32serviceutil",
 
         str(agent_dir / "main.py")
     ]

@@ -117,7 +117,10 @@ def get_log_path() -> Path:
         if sys.platform == "darwin":
             base = Path.home() / "Library" / "Logs" / "KuaminiSecurityClient"
         elif os.name == "nt":
-            base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient"
+            if "--service" in sys.argv:
+                base = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient"
+            else:
+                base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient"
         else:
             base = Path.home() / ".local" / "share" / "KuaminiSecurityClient"
         base.mkdir(parents=True, exist_ok=True)
@@ -160,13 +163,19 @@ def heartbeat(config):
 
     # IMPORTANT: build absolute URL via helper
     heartbeat_url = build_api_url(cfg, "heartbeat")
+    local_ip, mac = get_network_info()
 
     payload = {
         "agent_id": agent_id,
         "account_id": account_id,
         "endpoint_id": endpoint_id,
         "installation_instance_id": installation_instance_id,
-        # keep your existing extra fields (status/version/local_ip/public_ip/mac/etc)
+        "hostname": socket.gethostname(),
+        "os": "windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux"),
+        "agent_version": AGENT_VERSION,
+        "local_ip": local_ip,
+        "mac_address": mac,
+        "public_ip": get_public_ip(),
     }
 
     resp = None
@@ -415,6 +424,9 @@ def get_config_path() -> Path:
     """Find config.json in multiple locations for PyInstaller compatibility and pre-configured installers."""
     # Windows-specific paths first (LOCALAPPDATA is more reliable for APP data)
     if os.name == "nt":
+        service_config = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient" / "config.json"
+        if service_config.exists():
+            return service_config
         localappdata = Path(os.environ.get("LOCALAPPDATA", Path.home()))
         win_config = localappdata / "KuaminiSecurityClient" / "config.json"
         if win_config.exists():
@@ -1043,6 +1055,22 @@ def initialize_threat_detection(config: dict, log_callback=None) -> dict:
         return {"enabled": False, "error": str(e)}
 
 
+def is_windows_service_running() -> bool:
+    if os.name != "nt" or "--service" in sys.argv:
+        return False
+    try:
+        result = subprocess.run(
+            ["sc.exe", "query", "KuaminiSecurityClient"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return result.returncode == 0 and "RUNNING" in result.stdout.upper()
+    except Exception:
+        return False
+
+
 def tray_main():
     """Run as full tray application with icon and menu."""
     setup_logging()
@@ -1060,7 +1088,12 @@ def tray_main():
     except Exception as e:
         logging.error("Failed to load config in tray_main: %s", e, exc_info=True)
         config = {}
-    threat_system = initialize_threat_detection(config, log_callback=logging.info)
+    service_managed = is_windows_service_running()
+    threat_system = (
+        {"enabled": False, "reason": "Windows service manages protection"}
+        if service_managed
+        else initialize_threat_detection(config, log_callback=logging.info)
+    )
 
     status = {"text": "Idle", "color": (46, 204, 113)}
     update_state = {
@@ -1576,10 +1609,10 @@ def tray_main():
 
     icon.menu = build_menu()
 
-    set_status("Starting")
+    set_status("Protected by service" if service_managed else "Starting")
 
     # Auto-register on startup (works with or without registration_token)
-    if config.get("auto_register"):
+    if config.get("auto_register") and not service_managed:
         set_status("Registering...")
         logging.info("Auto-registration enabled, attempting registration")
         ok, res = register(config)
@@ -1617,9 +1650,10 @@ def tray_main():
             logging.warning("Auto-registration failed: %s", res)
             set_status("Registration failed, retrying on heartbeat")
 
-    threading.Thread(target=heartbeat_loop, daemon=True).start()
+    if not service_managed:
+        threading.Thread(target=heartbeat_loop, daemon=True).start()
 
-    if threat_system.get("enabled"):
+    if threat_system.get("enabled") and not service_managed:
         threading.Thread(target=threat_scan_loop, daemon=True).start()
         threading.Thread(target=realtime_monitor_loop, daemon=True).start()
         threading.Thread(target=threat_action_loop, daemon=True).start()
@@ -2263,6 +2297,15 @@ def background_agent_mode(config):
             print(f"[ERROR] {msg}", file=sys.stderr)
             log_to_emergency_file(msg)
             sys.stderr.flush()
+
+
+if __name__ == "__main__":
+    if os.name == "nt" and "--service" in sys.argv:
+        from agent_service import run_service
+
+        run_service()
+    else:
+        tray_main()
 
 
 

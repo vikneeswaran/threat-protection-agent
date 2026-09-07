@@ -1,0 +1,303 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <DirectoryRef Id="INTERNALFOLDER">
+            <Directory Id="dir4D279F98958575CA8DA4AE922C110AA8" Name="certifi" />
+            <Directory Id="dir8889CB8D521F95C9138EEB35C079F0DC" Name="charset_normalizer" />
+            <Directory Id="dir4BBD651273CA645C2D90ED60F670C1D5" Name="PIL" />
+            <Directory Id="dir65103041B51FA443F7C9EBF39AE8CB77" Name="psutil" />
+            <Directory Id="dir6B0F5875799C1F49CE9D048B3694DFF6" Name="setuptools" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <ComponentGroup Id="InternalFiles">
+            <Component Win64="yes" Id="cmpA9395C39664F80572D649C1C365D496B" Directory="INTERNALFOLDER" Guid="{BCD3E321-B396-48BF-8E85-8AD4E5C03A78}">
+                <File Id="filF27C6BAEA084366BC7984777EEE0DAE2" KeyPath="yes" Source="SourceDir\api-ms-win-core-console-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpF4C2C8092145204D6F1263AE7C855493" Directory="INTERNALFOLDER" Guid="{FC054567-76A3-4F11-89CD-1E123653765D}">
+                <File Id="fil6EA7D00962AA95D5335BDF457E34E933" KeyPath="yes" Source="SourceDir\api-ms-win-core-datetime-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpB99CFC53935817C087AF641CA688AB76" Directory="INTERNALFOLDER" Guid="{9C32C398-307A-4A96-9423-29C029F072DB}">
+                <File Id="fil9D549AEA9A1C82BF577360CE18D53AF3" KeyPath="yes" Source="SourceDir\api-ms-win-core-debug-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp91E4D62E69D66241472A0ADB761C302A" Directory="INTERNALFOLDER" Guid="{8F320D44-5F9D-4C0A-8AC3-C82F423B31C5}">
+                <File Id="fil5AF579D8A7D161FEC064A035EBFAAE0F" KeyPath="yes" Source="SourceDir\api-ms-win-core-errorhandling-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp6F4EE7E0DA986066A0FDD8CC5F99E9AC" Directory="INTERNALFOLDER" Guid="{21D23BF3-A1E8-4400-914E-25D2E9A942A6}">
+                <File Id="filE1C4C172C9C60F8BA63253CE2BCB10FA" KeyPath="yes" Source="SourceDir\api-ms-win-core-fibers-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp3DC459A9A0612C676960B1B9EE9087D2" Directory="INTERNALFOLDER" Guid="{B7FE6EA3-E45D-4940-BAE9-62B680CCF3B5}">
+                <File Id="fil59908BD9D3F2D9C2C6662A3954DDFF3A" KeyPath="yes" Source="SourceDir\api-ms-win-core-file-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpEFA124509582A06EA13C687DF211A237" Directory="INTERNALFOLDER" Guid="{B46E75E3-EE7D-4688-8662-1620D8FC473A}">
+                <File Id="fil4165C647E8811E4A11615E6A7A1A603A" KeyPath="yes" Source="SourceDir\api-ms-win-core-file-l1-2-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp18D8DC5F8BF041B8EE275B0A79420724" Directory="INTERNALFOLDER" Guid="{FF62E5C6-5729-43B2-9C58-A234830D34F9}">
+                <File Id="fil5DA11B8EF0CCB8408735C3A71B973588" KeyPath="yes" Source="SourceDir\api-ms-win-core-file-l2-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpB8D9583B395F8A175CF0BF9501C585C1" Directory="INTERNALFOLDER" Guid="{50067B2A-1E89-4144-8223-9BBBB2ED99E3}">
+                <File Id="filD3DF06F6FB8267E3F9E9D4A380AC0374" KeyPath="yes" Source="SourceDir\api-ms-win-core-handle-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp11C179F0E9133E339EBE02A84CC212A5" Directory="INTERNALFOLDER" Guid="{012F931E-F6B3-45AA-83DC-7BDAEBA02E12}">
+                <File Id="filBC19ADCAE4F340E5D7B6C90DEDED5410" KeyPath="yes" Source="SourceDir\api-ms-win-core-heap-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp93202B32822D1F7F50CF085D7B42F450" Directory="INTERNALFOLDER" Guid="{37464E4D-688D-44A2-B561-D01EBD1B67B6}">
+                <File Id="filC5A570D7FCE73F963444F3C4B3EB5368" KeyPath="yes" Source="SourceDir\api-ms-win-core-interlocked-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp03277BBF1EB2996D6759DF10860AFC29" Directory="INTERNALFOLDER" Guid="{D8B13CED-D055-4ACA-97D7-CE2639B0B3EE}">
+                <File Id="fil771F18B4EC129054AA05A287371D3EAC" KeyPath="yes" Source="SourceDir\api-ms-win-core-libraryloader-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp914392E212FCBDF2241BBBB3AAC2FF94" Directory="INTERNALFOLDER" Guid="{ACFEE126-2957-402E-B4E7-FA384D7B5443}">
+                <File Id="fil2C5C8D772A7EADF3747F325A097319D1" KeyPath="yes" Source="SourceDir\api-ms-win-core-localization-l1-2-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp2F416D3D6B9235315F00BA93B9C3229B" Directory="INTERNALFOLDER" Guid="{8E0CE381-3AB4-4597-A74C-8B09D1D6297D}">
+                <File Id="filE2B4B101D5BF7A213AA5381997332495" KeyPath="yes" Source="SourceDir\api-ms-win-core-memory-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp2674E94F9C72D4227936AFA81A58D4A5" Directory="INTERNALFOLDER" Guid="{150F1F1E-8F17-49A0-A82D-EFD9121FA60F}">
+                <File Id="fil46F6D952145DC3AA3E5AD39559259C36" KeyPath="yes" Source="SourceDir\api-ms-win-core-namedpipe-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpCC3C3EA17370D75A1D7FCEA941627F80" Directory="INTERNALFOLDER" Guid="{5D52A3A3-AC9E-4CF9-B592-716383F6E72D}">
+                <File Id="filDA2428508A0807060D5A876753656569" KeyPath="yes" Source="SourceDir\api-ms-win-core-processenvironment-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpDBEEECD611505C6AADB58A04D747B7F4" Directory="INTERNALFOLDER" Guid="{D8BD237C-53EA-463C-9B0B-374413D1D56D}">
+                <File Id="filE0073A4768C1700FA3EC88666DCD7BE7" KeyPath="yes" Source="SourceDir\api-ms-win-core-processthreads-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp8BF210AE0D81FB0AD6CA3F947FD44C63" Directory="INTERNALFOLDER" Guid="{580F8AC2-414C-4BC2-8F7D-5AAD5C2DC659}">
+                <File Id="filF465E284800222D10D45DF867BD4A8CC" KeyPath="yes" Source="SourceDir\api-ms-win-core-processthreads-l1-1-1.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpBB283EA4E7A4BB215825CED96EBCBF58" Directory="INTERNALFOLDER" Guid="{7C72FB7B-722C-443E-A4C6-5554A7AE03AC}">
+                <File Id="fil7404F8892BDFCB5EB783BA9607DBF2E6" KeyPath="yes" Source="SourceDir\api-ms-win-core-profile-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpE9D3220AB886B3D0B528A378C579B535" Directory="INTERNALFOLDER" Guid="{0CF25429-6C13-4AB8-92F6-D17CE0E00E25}">
+                <File Id="fil28F95548A2624DDC120485D8B12C6620" KeyPath="yes" Source="SourceDir\api-ms-win-core-rtlsupport-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp719D995F5BBDD074CA6D91B712FFF4BE" Directory="INTERNALFOLDER" Guid="{9D154362-E216-42B7-92F5-C2C145559C9E}">
+                <File Id="fil224D5EC28F03018A526292AFF5B9D91A" KeyPath="yes" Source="SourceDir\api-ms-win-core-string-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpCCCE83BC661D8ECD8B82C2C36E99AE89" Directory="INTERNALFOLDER" Guid="{F3812737-D923-48C6-9CA0-7EE8BBFC8487}">
+                <File Id="filB610C759001949EC529FFF597C5B6B44" KeyPath="yes" Source="SourceDir\api-ms-win-core-synch-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpB8BD4BE5181690D3E508120A3614EDC8" Directory="INTERNALFOLDER" Guid="{5564F47B-AD96-4353-87EA-D869DF99D94F}">
+                <File Id="fil2AE731598BF002A6680B9CFEA27A690B" KeyPath="yes" Source="SourceDir\api-ms-win-core-synch-l1-2-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp231A232DE16FF691595C70909CA81C7D" Directory="INTERNALFOLDER" Guid="{6DAFE5F1-5965-4477-B5BF-4A0FEEB23C89}">
+                <File Id="filCBA1BB420C24F658551D93720E2E1924" KeyPath="yes" Source="SourceDir\api-ms-win-core-sysinfo-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp86136F8E949DF2246644325CE4791DF9" Directory="INTERNALFOLDER" Guid="{35817457-D3A9-4005-B3A2-D2ED2BC6ED26}">
+                <File Id="filD9DC2ADFE4FF64EE2681FF6DC3A7C7F5" KeyPath="yes" Source="SourceDir\api-ms-win-core-timezone-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp9DE1B029E146126B53249E2F2E391780" Directory="INTERNALFOLDER" Guid="{CE273D01-099A-48BA-AA7C-8EA357C5190E}">
+                <File Id="fil0357C2615F91475EB97327C410EB0657" KeyPath="yes" Source="SourceDir\api-ms-win-core-util-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpC307C7F943ADC8BEABF1E145E0F703D4" Directory="INTERNALFOLDER" Guid="{B9A3D737-A060-4370-8AC8-A848F18CAD8B}">
+                <File Id="fil04E038A537A089E7ED0252E085DE81FB" KeyPath="yes" Source="SourceDir\api-ms-win-crt-conio-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp89604520251E01745B32DAB549F97077" Directory="INTERNALFOLDER" Guid="{D580330F-046A-409B-AAC5-FBA1B52808F7}">
+                <File Id="filBAE125246A04CF24804451D3D37A97D4" KeyPath="yes" Source="SourceDir\api-ms-win-crt-convert-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpA09E6C67372F61AA2B9501A9E414A3A3" Directory="INTERNALFOLDER" Guid="{202378D1-27DF-46FA-931E-340AB5CC21D7}">
+                <File Id="filCA7DD416E79135301F87FDC2BD448CB6" KeyPath="yes" Source="SourceDir\api-ms-win-crt-environment-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp63678459B8831D0ED157F880C5AE28FE" Directory="INTERNALFOLDER" Guid="{C3986020-BE2E-4EEC-AF2F-06681965BA77}">
+                <File Id="filE26B6D06F1D53CA3F5B37309B1B34623" KeyPath="yes" Source="SourceDir\api-ms-win-crt-filesystem-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp771B21531083EED423D98EE841BE5607" Directory="INTERNALFOLDER" Guid="{40919B78-8E7E-487D-A3DC-F821FD3DA873}">
+                <File Id="filBEE74724D54E8BAFECA381C05BEEE73C" KeyPath="yes" Source="SourceDir\api-ms-win-crt-heap-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp4D4373DAE65466B447A43E6A4FD1ECC5" Directory="INTERNALFOLDER" Guid="{A64EA800-C240-4D54-ACAD-7F04A3C65CF4}">
+                <File Id="fil5C1211748C6F62B8D43B74E39F1CDE3C" KeyPath="yes" Source="SourceDir\api-ms-win-crt-locale-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp4F0C9B37151D50C940608AA51C367000" Directory="INTERNALFOLDER" Guid="{D45EEC54-76E6-436B-BC24-4C1C6D01F02D}">
+                <File Id="filFB9CB09B53B54675C33CD6E1E7EE1800" KeyPath="yes" Source="SourceDir\api-ms-win-crt-math-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp044F1001060202249E855DDBAB20C3E4" Directory="INTERNALFOLDER" Guid="{84808DB1-A3D7-443A-9C26-6642E27A4EE8}">
+                <File Id="filE2C172A237DB5C76F2FE5F6E0E72B10D" KeyPath="yes" Source="SourceDir\api-ms-win-crt-process-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpB0EB5CA2E1B72C7DEB35C7A035140F15" Directory="INTERNALFOLDER" Guid="{896E3067-C026-4599-87B5-C8FF00E4763D}">
+                <File Id="fil3650E5E81E6D9A9D3955EDA55A3EE10C" KeyPath="yes" Source="SourceDir\api-ms-win-crt-runtime-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp65C7D3FEACB6ABBB1DF5302BBECA104C" Directory="INTERNALFOLDER" Guid="{0DBA9A85-26D2-464F-BC7B-0C73C5F738A9}">
+                <File Id="fil22C649CC9AF227A71695670B09B70745" KeyPath="yes" Source="SourceDir\api-ms-win-crt-stdio-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp21401B69FFB01163CA2EE5B7F519DE7F" Directory="INTERNALFOLDER" Guid="{06E442C6-34C8-4DBD-9278-1A3172C8AAA5}">
+                <File Id="filB2EBAC3FD1BE2E175B3D08F32F01CE9B" KeyPath="yes" Source="SourceDir\api-ms-win-crt-string-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp5320D23CC64D7DA2E3C4FACB770AB1B8" Directory="INTERNALFOLDER" Guid="{B670CBFB-49A5-40C8-B1A8-3D3A002A7F78}">
+                <File Id="filBB8AA8D25BE90BA7D316819C3D8D0981" KeyPath="yes" Source="SourceDir\api-ms-win-crt-time-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp22DFA63B9621DAB93BD067251A5B772F" Directory="INTERNALFOLDER" Guid="{3D73CB1B-5AB9-4C19-82AA-C34756ED03BA}">
+                <File Id="filC1F85941333EDB95FB81C9B6917EA92F" KeyPath="yes" Source="SourceDir\api-ms-win-crt-utility-l1-1-0.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp7CCD7A6EE68E8CA1383231B871D06282" Directory="INTERNALFOLDER" Guid="{CB4BAC04-9B74-482A-8B79-9FAF0A309921}">
+                <File Id="filB2B0C642C8E15BC199F03B9885EF50E7" KeyPath="yes" Source="SourceDir\base_library.zip" />
+            </Component>
+            <Component Win64="yes" Id="cmpF7A7CF5E16A47FC53D86A4CDC5C614A1" Directory="INTERNALFOLDER" Guid="{7ACAF787-1615-40F7-AA92-9A909052F478}">
+                <File Id="filC1202338FDE5214B9218D36F015F6D03" KeyPath="yes" Source="SourceDir\icon-green.png" />
+            </Component>
+            <Component Win64="yes" Id="cmpD49752E315655A1FD7EF99F57EE5BB65" Directory="INTERNALFOLDER" Guid="{3A273144-8777-451E-BBF6-31B76C24A50D}">
+                <File Id="filA735BC4E6BF407F7EC6007A35FF304A2" KeyPath="yes" Source="SourceDir\icon-red.png" />
+            </Component>
+            <Component Win64="yes" Id="cmp5FFC73B00851828BA13ABF5B8F831A9E" Directory="INTERNALFOLDER" Guid="{3C1DD61D-03D5-421A-B6E2-56640B5279F7}">
+                <File Id="fil8B678849B139BFA95AA083D838CE70C9" KeyPath="yes" Source="SourceDir\icon-yellow.png" />
+            </Component>
+            <Component Win64="yes" Id="cmpEE1CAC75806C49D7EA1E6619053DDFD8" Directory="INTERNALFOLDER" Guid="{42A2EEAE-DA7E-4623-9183-9B8E1CFBDDDF}">
+                <File Id="filE20460C4DD17A1E5BBE61B47888CA99F" KeyPath="yes" Source="SourceDir\libcrypto-3.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp16A72D625F89650B7F0EE4605B57A6F5" Directory="INTERNALFOLDER" Guid="{BF0D4F87-6C22-4294-8612-8C248C9503E8}">
+                <File Id="fil4ACE24B5D4AA63CC17A91B9C23964EEA" KeyPath="yes" Source="SourceDir\libffi-8.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpC713BEE0C75A1A34A9AEBFB5A0283A28" Directory="INTERNALFOLDER" Guid="{54A1A853-C0AD-4D75-9B5D-ECDEC9757E51}">
+                <File Id="fil4017706D3A05DAC9A8184D955D5EF4ED" KeyPath="yes" Source="SourceDir\libssl-3.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp2227CC419438B7035550DFAEBF20F955" Directory="INTERNALFOLDER" Guid="{40C23124-3388-4ADF-BC77-AE27AC0D91A6}">
+                <File Id="fil9DCB8AE90308C94770D74526414762A9" KeyPath="yes" Source="SourceDir\pyexpat.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp249C30A9C94E5787BE7CBC963C4A0A74" Directory="INTERNALFOLDER" Guid="{4910C248-C271-4DC1-8D0C-C4D99B481A54}">
+                <File Id="fil51E4FE4D5F8B20DDFFCA92376571CE8B" KeyPath="yes" Source="SourceDir\python3.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpDF36774C90659C199781CD0BB197B179" Directory="INTERNALFOLDER" Guid="{4278B6D6-6652-4EB8-A01B-398FFEA35F9C}">
+                <File Id="fil59F2F5F1C851BDDE47EBA65A1E5A38C0" KeyPath="yes" Source="SourceDir\python314.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp3703BCEE2685594EDBF2BC83BDC3F80B" Directory="INTERNALFOLDER" Guid="{7F39E86B-7502-4646-B308-B999BC3AF4C7}">
+                <File Id="filA7664284B88F234E5CC80D62F5B2E26B" KeyPath="yes" Source="SourceDir\select.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpA68C7613CA81716C1556E2BBBF195EC4" Directory="INTERNALFOLDER" Guid="{CF5B7341-A9DE-4892-B6CB-9EA154628732}">
+                <File Id="fil3D6D11C628674841059C540B5AB3A9CE" KeyPath="yes" Source="SourceDir\ucrtbase.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp4DAC7BB80D5506A92E94D7FE4138B0C5" Directory="INTERNALFOLDER" Guid="{9D87F49A-BDE8-46C6-ACFD-BF8E221B2F6D}">
+                <File Id="filB5D1200622E278A560A275B312DF9C77" KeyPath="yes" Source="SourceDir\unicodedata.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp51B41C865404CBA9344658C5AAD1B0AC" Directory="INTERNALFOLDER" Guid="{FA8FFE96-9F4E-4E26-A798-38191B43D8C6}">
+                <File Id="filCF8C32529284DA9627062A7CF7CDB448" KeyPath="yes" Source="SourceDir\VCRUNTIME140.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmp84460728F11E4699B1373A964786629A" Directory="INTERNALFOLDER" Guid="{9125771D-17D7-4793-9F82-8F2622A26447}">
+                <File Id="fil24EDD25AA70C8203E6656359C960A9A0" KeyPath="yes" Source="SourceDir\VCRUNTIME140_1.dll" />
+            </Component>
+            <Component Win64="yes" Id="cmpD41D4BF67CD166ADCBFECAA3089F4C78" Directory="INTERNALFOLDER" Guid="{D8F472DA-3976-4B60-ACD5-612E7AF2B163}">
+                <File Id="fil31E1BCB1FCE5B8B036C17977EF0F8BA2" KeyPath="yes" Source="SourceDir\_asyncio.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpB85B81B0BAF75D76621C00B13E7D6DAC" Directory="INTERNALFOLDER" Guid="{F1432714-2AA3-4E25-AE76-CD4C2831617C}">
+                <File Id="fil752F1182F147862D9E6DBE28AB625B16" KeyPath="yes" Source="SourceDir\_bz2.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp1E586623E04C696D377A1C93E326CEB2" Directory="INTERNALFOLDER" Guid="{816AE7D3-D8BE-412B-BB9A-620AB8BE7FB9}">
+                <File Id="fil784141CAF97B3E48D248394576F4E0FD" KeyPath="yes" Source="SourceDir\_ctypes.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp2B0C8A1D096B1CEC033B1AC21866A6B6" Directory="INTERNALFOLDER" Guid="{E15FF02E-FA7C-4D4A-B9CE-BAD4939669B6}">
+                <File Id="filAFFA8972638816BD4369D6CCDA0BB6AD" KeyPath="yes" Source="SourceDir\_decimal.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpA9CAD839D94378CDE3414917EFC0B79A" Directory="INTERNALFOLDER" Guid="{98D4C011-BE97-457C-BAD9-71EBE3DC4578}">
+                <File Id="filF7C0112A803A20C00D27AA93383C487C" KeyPath="yes" Source="SourceDir\_elementtree.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp87564042436356EA480F84D1E428361B" Directory="INTERNALFOLDER" Guid="{E03F40F1-130D-49EE-AB2D-3D42732F1064}">
+                <File Id="filBDCE2F6C9B8F72E2CB903B77D0A4D773" KeyPath="yes" Source="SourceDir\_hashlib.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpA106A6A48DB3AFC45CA80F060242BDC0" Directory="INTERNALFOLDER" Guid="{D2675423-6ADE-4D0A-A9C0-10F6E077512E}">
+                <File Id="fil050C016E00C10CE42EA1BEF34C6DE39C" KeyPath="yes" Source="SourceDir\_lzma.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp24744792DAD6CCD6C096E4EACBEDD2BE" Directory="INTERNALFOLDER" Guid="{9ED81677-9330-4073-A0B0-5D8AE0C9591D}">
+                <File Id="fil23B3E8B1A16C11960D3E8AD9D6FAD880" KeyPath="yes" Source="SourceDir\_multiprocessing.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp19918DAE959C0B4B5BC56B4C287E2532" Directory="INTERNALFOLDER" Guid="{27017FCC-1260-483A-B63D-7611AFA11760}">
+                <File Id="filABC42021CB06F095DA619FFA98BBBEBE" KeyPath="yes" Source="SourceDir\_overlapped.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp7C9F7DBF4523C1D3C02FC10E41F4DD7C" Directory="INTERNALFOLDER" Guid="{5E07E470-C0AD-49E4-8F41-B2F7A54B4F1E}">
+                <File Id="fil6792B02874C9A3B98C042066EF6A901D" KeyPath="yes" Source="SourceDir\_queue.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp703304991F5B4C637035F40FBE494DD0" Directory="INTERNALFOLDER" Guid="{ACECFC21-61F0-4323-950B-D5DFC6C59DA0}">
+                <File Id="fil94BB92315BD8E7A88F56364D84D2F6AC" KeyPath="yes" Source="SourceDir\_socket.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp3295346F3C2327A882B2178D2A4301FC" Directory="INTERNALFOLDER" Guid="{C3134C25-A90E-453A-91C1-B8EFC63EABC7}">
+                <File Id="fil141D79BBADE49452B471DA613B928ED0" KeyPath="yes" Source="SourceDir\_ssl.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp3A2FDFAECB0CF6EB788D297BED974AC3" Directory="INTERNALFOLDER" Guid="{56CDBBC9-A4D2-48B2-8D45-8096CD0BF748}">
+                <File Id="fil7F7F11B2B719E5DCDE8094F46D19E6C7" KeyPath="yes" Source="SourceDir\_uuid.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp962516D0034A90BAC2CDF9D8C327AACF" Directory="INTERNALFOLDER" Guid="{2ABFB6EC-0998-4457-9EBC-529BB5474296}">
+                <File Id="fil00B09F2F8794B00A7E4FCFD778B31F5A" KeyPath="yes" Source="SourceDir\_wmi.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp3DABCBBB42AFB4E68F9C032434968B86" Directory="INTERNALFOLDER" Guid="{930AAE02-B0ED-4BDA-816A-AB9F97D88768}">
+                <File Id="filA075F9CB93873CBA2142A57726D12141" KeyPath="yes" Source="SourceDir\_zstd.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpCEE0CA8157B04BA59ECA5456473A5D77" Directory="dir4D279F98958575CA8DA4AE922C110AA8" Guid="{FDAA0639-C568-40E1-90DE-434A760922B9}">
+                <File Id="fil1ADBC1992AC7B5241A11BD2EA9B7ED67" KeyPath="yes" Source="SourceDir\certifi\cacert.pem" />
+            </Component>
+            <Component Win64="yes" Id="cmpC6601F8FC39BADB9DDE654CD3301A3A8" Directory="dir4D279F98958575CA8DA4AE922C110AA8" Guid="{A78D6E82-3F4C-4607-BB85-C1CF45A82DB3}">
+                <File Id="filBFF35E39D2D1A8A9EA9765841218BF87" KeyPath="yes" Source="SourceDir\certifi\py.typed" />
+            </Component>
+            <Component Win64="yes" Id="cmpC5E5C5767127CA9929164336A0946E26" Directory="dir8889CB8D521F95C9138EEB35C079F0DC" Guid="{43E83F57-1ECA-49C1-88F9-FF431019FA03}">
+                <File Id="fil30AC8E97A9C0B3D2399CB941C5A853C0" KeyPath="yes" Source="SourceDir\charset_normalizer\md.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp35A44CC1B8344BBB39227B734EC9B40E" Directory="dir8889CB8D521F95C9138EEB35C079F0DC" Guid="{1B460F0F-74EA-460E-93DB-0C5277A27031}">
+                <File Id="fil3BBC379EFE175A77DAA8A10FDFD77A13" KeyPath="yes" Source="SourceDir\charset_normalizer\md__mypyc.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp23B2DB652D98C8F0AF4356DA497C4A1E" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{21FBB435-F9A7-4EFD-94F5-099C41BE1AB7}">
+                <File Id="fil00BAC3B348D79D452E210E667DBE4E95" KeyPath="yes" Source="SourceDir\PIL\_avif.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp562117C2F0319BD48EDE6E0B199F6797" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{EDD81B99-4507-41A2-9EFC-45577E4911F5}">
+                <File Id="fil40844B8999A09F48B25D6E0AF17BDC39" KeyPath="yes" Source="SourceDir\PIL\_imaging.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp3B60CC412DC167465CFAEBC7FE8743F3" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{00EE39E9-CE44-46A4-B7A4-42872DD87F6E}">
+                <File Id="filCC3F9EBCFC3F65DD8DE68F90092CB3C0" KeyPath="yes" Source="SourceDir\PIL\_imagingcms.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp619911853DFFD726A3E162F2F8DA62DC" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{D9AA5467-A1A0-4E0E-BB5C-72DBC11E59C0}">
+                <File Id="fil5F35D6AC6B6F5EF8FD263FC14C34440E" KeyPath="yes" Source="SourceDir\PIL\_imagingft.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpF4431A14A5387AF5DD9A6CB077D5082C" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{0DF9A8A6-1EC0-4640-93D2-AA9A9B099A89}">
+                <File Id="filEDE2AD6BA34DE9E55812C19211D8028D" KeyPath="yes" Source="SourceDir\PIL\_imagingmath.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp23D56A7860CCCD1801C10643FDB4FDFC" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{A80403D2-906F-4536-BE74-E166CE53E973}">
+                <File Id="fil7DE8F69F474B6D9143A6C60981483A9D" KeyPath="yes" Source="SourceDir\PIL\_imagingtk.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp188479A86BDC6ACFD5BF64DF517628E8" Directory="dir4BBD651273CA645C2D90ED60F670C1D5" Guid="{8F38DA99-B617-42C5-AC22-68E5EEEE4E9B}">
+                <File Id="fil45E51FFB6439391B4138CEC65C7B2E9D" KeyPath="yes" Source="SourceDir\PIL\_webp.cp314-win_amd64.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmp840E71405645D957E33712E6D57DC1B0" Directory="dir65103041B51FA443F7C9EBF39AE8CB77" Guid="{F0E5D26C-313C-49A9-94EB-9BBA8A2BCE7F}">
+                <File Id="fil2F23601023CCBBF8427CACB045556A09" KeyPath="yes" Source="SourceDir\psutil\_psutil_windows.pyd" />
+            </Component>
+            <Component Win64="yes" Id="cmpF8A62DD380FD8AFE78046AE7899EA6CD" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{E83E36FF-2289-4E9E-BB42-769831477F92}">
+                <File Id="filB925CC48774DE885B9F14151EF0EA995" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\INSTALLER" />
+            </Component>
+            <Component Win64="yes" Id="cmp1F2E2FC8EEE25E01926940338876B8BC" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{085091A5-DBE4-462B-ACDD-B75B3D2C8C67}">
+                <File Id="filE79072C8456AFEA99786AA30D13D5D66" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\LICENSE" />
+            </Component>
+            <Component Win64="yes" Id="cmpA771D74E81B5ED5A37DB5A9012CFDBD5" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{B8A0A990-356F-497D-9C27-97A02508DA98}">
+                <File Id="fil01E4A2A61D86BDA8AC1C8AB00159DFAF" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\METADATA" />
+            </Component>
+            <Component Win64="yes" Id="cmp628D1AB58EF8ADB307F03C230F9682B7" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{C0FE12EE-2D1B-4B31-9FB3-1FBA2C683E54}">
+                <File Id="fil28E3BB3D504160753BE80E63857EDDB2" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\RECORD" />
+            </Component>
+            <Component Win64="yes" Id="cmp7C502BD7777E87974ACC685D88A0EC29" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{E215279F-678B-48F4-BEF2-4275D9B95FC7}">
+                <File Id="filBCED77B3DF42A4679030399CBE26CC4E" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\REQUESTED" />
+            </Component>
+            <Component Win64="yes" Id="cmp00F17788EF9559EA7A26B347F3F434E4" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{F1D1AA99-08F7-42E3-8EE4-8B99C2FF7AFB}">
+                <File Id="fil68BF998A2CFFBFCC79A5E24DD3B71AF0" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\top_level.txt" />
+            </Component>
+            <Component Win64="yes" Id="cmp628357D4DD1A3CD97026560B31D9961C" Directory="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Guid="{426707B0-3BBD-4C8A-B62B-A3CF5EF8588F}">
+                <File Id="filCEB933C53AE3AE008402914839950D23" KeyPath="yes" Source="SourceDir\setuptools\_vendor\importlib_metadata-8.0.0.dist-info\WHEEL" />
+            </Component>
+            <Component Win64="yes" Id="cmp3181A67D2FD27D08AC95D295BA81037D" Directory="dir6FC83AB8681B64A2514037B360EC8112" Guid="{72D9DE69-F670-4B17-BC28-D2DE6631705E}">
+                <File Id="filD8C3D300A3F36F28A5C20B2012F0E621" KeyPath="yes" Source="SourceDir\setuptools\_vendor\jaraco\text\Lorem ipsum.txt" />
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="dir9458A5EDB035C26C62506113D477CB9C">
+            <Directory Id="dir6FC83AB8681B64A2514037B360EC8112" Name="text" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="dirD14D28C53C7B1ED2D753EA8138146B7C">
+            <Directory Id="dir9458A5EDB035C26C62506113D477CB9C" Name="jaraco" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="dirD14D28C53C7B1ED2D753EA8138146B7C">
+            <Directory Id="dir9B8372FF8A14DD456BD9F8B667B5E3AF" Name="importlib_metadata-8.0.0.dist-info" />
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="dir6B0F5875799C1F49CE9D048B3694DFF6">
+            <Directory Id="dirD14D28C53C7B1ED2D753EA8138146B7C" Name="_vendor" />
+        </DirectoryRef>
+    </Fragment>
+</Wix>

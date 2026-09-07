@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['../main.py'],
+    ['C:\\Users\\vigne\\THREAT-PROTECTION-AGENT\\threat-protection-agent\\agent-tray\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[('C:\\Users\\vigne\\THREAT-PROTECTION-AGENT\\threat-protection-agent\\agent-tray\\icon-green.png', '.'), ('C:\\Users\\vigne\\THREAT-PROTECTION-AGENT\\threat-protection-agent\\agent-tray\\icon-yellow.png', '.'), ('C:\\Users\\vigne\\THREAT-PROTECTION-AGENT\\threat-protection-agent\\agent-tray\\icon-red.png', '.')],
+    hiddenimports=['agent_service', 'threat_detection', 'threat_detection.engine', 'threat_detection.process_monitor', 'threat_detection.reporter', 'threat_detection.scanner', 'threat_detection.signatures', 'win32event', 'win32service', 'win32serviceutil'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='C:/Users/threat-protectionAgent/threat-protection-agent/agent-tray/version_info.txt',
+    version='C:\\Users\\vigne\\THREAT-PROTECTION-AGENT\\threat-protection-agent\\agent-tray\\build\\version_info.generated.txt',
 )
 coll = COLLECT(
     exe,
