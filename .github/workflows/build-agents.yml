@@ -8,7 +8,7 @@ permissions:
   actions: read
 
 env:
-  AGENT_VERSION: 1.0.34
+  AGENT_VERSION: 1.0.35
 
 jobs:
   build-macos:
