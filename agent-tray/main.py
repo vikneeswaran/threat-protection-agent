@@ -158,7 +158,10 @@ def heartbeat(config):
 
     if missing:
         msg = f"Heartbeat skipped: missing required fields: {', '.join(missing)}"
-        logger.warning(msg)
+        logger.warning("%s. Triggering re-registration.", msg)
+        reg_ok, reg_res = register(config)
+        if reg_ok:
+            return True, "re_registered"
         return False, msg
 
     # IMPORTANT: build absolute URL via helper
@@ -189,6 +192,11 @@ def heartbeat(config):
 
         if not resp.ok:
             logger.error("Heartbeat HTTP %s: %s", status_code, body)
+            if status_code in (404, 401) or "not found" in body.lower() or "expired" in body.lower():
+                logger.warning("Heartbeat error indicates endpoint/registration invalid (%s). Attempting re-registration...", status_code)
+                reg_ok, _ = register(config)
+                if reg_ok:
+                    return True, "re_registered"
             resp.raise_for_status()
 
         logger.info("Heartbeat successful")
@@ -274,133 +282,108 @@ def verify_installation():
         if not app_path.exists():
             issues.append("App bundle not found in /Applications")
     
-    # Determine config directory based on OS
+    # Determine config directories based on OS
     if os.name == "nt":
-        # Windows: use LOCALAPPDATA
-        localappdata = Path(os.environ.get("LOCALAPPDATA", Path.home()))
-        config_dir = localappdata / "KuaminiSecurityClient"
+        # Windows: ensure both ProgramData (for service) and LOCALAPPDATA (for user) exist
+        prog_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient"
+        local_appdata = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient"
+        config_dirs = [prog_data, local_appdata]
     else:
         # macOS/Linux: use ~/.kuamini
-        config_dir = Path.home() / ".kuamini"
+        config_dirs = [Path.home() / ".kuamini"]
     
-    # Check config directory and create if missing
-    if not config_dir.exists():
-        try:
-            config_dir.mkdir(parents=True, exist_ok=True)
-            print(f"[Installation Fix] Created config directory: {config_dir}", file=sys.stderr)
-        except Exception as e:
-            issues.append(f"Could not create config directory: {e}")
+    # Check config directories and create if missing
+    for c_dir in config_dirs:
+        if not c_dir.exists():
+            try:
+                c_dir.mkdir(parents=True, exist_ok=True)
+                print(f"[Installation Fix] Created config directory: {c_dir}", file=sys.stderr)
+            except Exception as e:
+                issues.append(f"Could not create config directory {c_dir}: {e}")
     
-    # Check config file and create default if missing
-    config_file = config_dir / "config.json"
-    if not config_file.exists():
-        try:
-            # Try to read registration token from install directory
-            token_from_file = None
-            token_file_path = None
-            if getattr(sys, 'frozen', False):
-                install_dir = Path(sys.executable).parent
-                # Check for registration.token (created by MSI build) - try both names
+    config_dir = config_dirs[0]
+    
+    # Check config file and create default if missing in any config directory
+    token_from_file = None
+    token_file_path = None
+
+    # Try to read registration token from install directory or search dirs
+    if getattr(sys, 'frozen', False) or os.name == "nt":
+        install_dir = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path.cwd()
+        # Check for registration.token - try both names
+        for token_filename in ["registration.token", "registration_token.txt"]:
+            token_file = install_dir / token_filename
+            if token_file.exists():
+                try:
+                    token_from_file = token_file.read_text(encoding='utf-8').strip()
+                    token_file_path = token_file
+                    print(f"[Installation Fix] Found registration token in: {token_file}", file=sys.stderr)
+                    break
+                except Exception as e:
+                    print(f"[Installation Fix] Failed to read token file {token_filename}: {e}", file=sys.stderr)
+        
+        # If not found in install dir, check ProgramData and LocalAppData token files
+        if not token_from_file:
+            for check_dir in [Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient",
+                              Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient"]:
                 for token_filename in ["registration.token", "registration_token.txt"]:
-                    token_file = install_dir / token_filename
+                    token_file = check_dir / token_filename
                     if token_file.exists():
                         try:
-                            token_from_file = token_file.read_text(encoding='utf-8').strip()
-                            token_file_path = token_file
-                            print(f"[Installation Fix] Found registration token in: {token_file}", file=sys.stderr)
-                            break
+                            content = token_file.read_text(encoding='utf-8').strip()
+                            if content != "placeholder-token" and len(content) > 50:
+                                token_from_file = content
+                                token_file_path = token_file
+                                break
+                        except Exception:
+                            pass
+                if token_from_file:
+                    break
+
+        # If not found, check Downloads and Desktop
+        if not token_from_file:
+            search_dirs = [
+                Path.home() / "Downloads",
+                Path.home() / "Desktop",
+                Path.cwd(),
+            ]
+            for search_dir in search_dirs:
+                for token_filename in ["registration.token", "registration_token.txt"]:
+                    token_file = search_dir / token_filename
+                    if token_file.exists():
+                        try:
+                            content = token_file.read_text(encoding='utf-8').strip()
+                            if content != "placeholder-token" and len(content) > 50:
+                                token_from_file = content
+                                token_file_path = token_file
+                                print(f"[Installation Fix] Found registration token in search dir: {token_file}", file=sys.stderr)
+                                break
                         except Exception as e:
-                            print(f"[Installation Fix] Failed to read token file {token_filename}: {e}", file=sys.stderr)
+                            print(f"[Installation Fix] Failed to read token from {token_file}: {e}", file=sys.stderr)
+                if token_from_file:
+                    break
+
+    # Ensure config.json exists in all config directories
+    for c_dir in config_dirs:
+        config_file = c_dir / "config.json"
+        if not config_file.exists():
+            try:
+                default_config = {
+                    "api_base": "https://kuaminisystems.com/api/securityagent/agent",
+                    "console_url": "https://kuaminisystems.com/securityAgent",
+                    "auto_register": True,
+                    "heartbeat_interval": 60
+                }
+                import uuid
+                default_config["agent_id"] = str(uuid.uuid4())
+                if token_from_file:
+                    default_config["registration_token"] = token_from_file
+                    print(f"[Installation Fix] Added registration token to config in {c_dir}", file=sys.stderr)
                 
-                # If not found in install dir, check Downloads and Desktop
-                if not token_from_file:
-                    search_dirs = [
-                        Path.home() / "Downloads",
-                        Path.home() / "Desktop",
-                        Path.cwd(),  # current working directory
-                    ]
-                    for search_dir in search_dirs:
-                        # First check directly in the folder
-                        for token_filename in ["registration.token", "registration_token.txt"]:
-                            token_file = search_dir / token_filename
-                            if token_file.exists():
-                                try:
-                                    content = token_file.read_text(encoding='utf-8').strip()
-                                    # Verify it's not the placeholder
-                                    if content != "placeholder-token" and len(content) > 50:
-                                        token_from_file = content
-                                        token_file_path = token_file
-                                        print(f"[Installation Fix] Found registration token in search dir: {token_file}", file=sys.stderr)
-                                        # Copy it to install dir for next time
-                                        try:
-                                            (install_dir / token_filename).write_text(content)
-                                            print(f"[Installation Fix] Copied token to install dir", file=sys.stderr)
-                                        except Exception as e:
-                                            print(f"[Installation Fix] Could not copy token to install dir: {e}", file=sys.stderr)
-                                        break
-                                except Exception as e:
-                                    print(f"[Installation Fix] Failed to read token from {token_file}: {e}", file=sys.stderr)
-                        
-                        # Also check in KuaminiSecurityClient-* subdirectories
-                        if not token_from_file and search_dir.exists():
-                            try:
-                                for subdir in search_dir.glob("KuaminiSecurityClient-*"):
-                                    if subdir.is_dir():
-                                        for token_filename in ["registration.token", "registration_token.txt"]:
-                                            token_file = subdir / token_filename
-                                            if token_file.exists():
-                                                try:
-                                                    content = token_file.read_text(encoding='utf-8').strip()
-                                                    # Verify it's not the placeholder
-                                                    if content != "placeholder-token" and len(content) > 50:
-                                                        token_from_file = content
-                                                        token_file_path = token_file
-                                                        print(f"[Installation Fix] Found registration token in subdirectory: {token_file}", file=sys.stderr)
-                                                        # Copy it to install dir for next time
-                                                        try:
-                                                            (install_dir / token_filename).write_text(content)
-                                                            print(f"[Installation Fix] Copied token to install dir", file=sys.stderr)
-                                                        except Exception as e:
-                                                            print(f"[Installation Fix] Could not copy token to install dir: {e}", file=sys.stderr)
-                                                        break
-                                                except Exception as e:
-                                                    print(f"[Installation Fix] Failed to read token from {token_file}: {e}", file=sys.stderr)
-                                        if token_from_file:
-                                            break
-                            except Exception as e:
-                                print(f"[Installation Fix] Error searching subdirectories in {search_dir}: {e}", file=sys.stderr)
-                        
-                        if token_from_file:
-                            break
-            
-            default_config = {
-                "api_base": "https://kuaminisystems.com/api/securityagent/agent",
-                "console_url": "https://kuaminisystems.com/securityAgent",
-                "auto_register": True,
-                "heartbeat_interval": 60
-            }
-            
-            # Generate fresh agent_id for this installation
-            import uuid
-            default_config["agent_id"] = str(uuid.uuid4())
-            
-            # Include registration token if found
-            if token_from_file:
-                default_config["registration_token"] = token_from_file
-                print(f"[Installation Fix] Added registration token to config", file=sys.stderr)
-            
-            config_file.write_text(json.dumps(default_config, indent=2))
-            print(f"[Installation Fix] Created default config file: {config_file}", file=sys.stderr)
-            
-            # Delete registration.token after consuming it (only if we found and read it)
-            if token_file_path and token_file_path.exists() and token_from_file:
-                try:
-                    token_file_path.unlink()
-                    print(f"[Installation Fix] Deleted consumed registration token file", file=sys.stderr)
-                except Exception as e:
-                    print(f"[Installation Fix] Could not delete token file: {e}", file=sys.stderr)
-        except Exception as e:
-            issues.append(f"Could not create config file: {e}")
+                config_file.write_text(json.dumps(default_config, indent=2))
+                print(f"[Installation Fix] Created default config file: {config_file}", file=sys.stderr)
+            except Exception as e:
+                issues.append(f"Could not create config file in {c_dir}: {e}")
     
     # Check LaunchAgent on macOS
     if sys.platform == 'darwin':
@@ -563,6 +546,21 @@ def _save_config(config_path, cfg):
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
+
+    # Mirror configuration across Windows paths so service and tray stay synced
+    if os.name == "nt":
+        try:
+            targets = [
+                Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient" / "config.json",
+                Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient" / "config.json",
+            ]
+            for target_path in targets:
+                if str(target_path.resolve()) != str(Path(config_path).resolve()):
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(target_path, "w", encoding="utf-8") as f:
+                        json.dump(cfg, f, indent=2)
+        except Exception:
+            pass
 
 def _antialias_filter():
     # Pillow 10 removed Image.ANTIALIAS; use Resampling.LANCZOS when available

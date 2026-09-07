@@ -41,6 +41,7 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
         win32event.SetEvent(self.stop_handle)
 
     def SvcDoRun(self):
+        self.ReportServiceStatus(win32service.SERVICE_RUNNING)
         setup_logging()
         logging.info("Kuamini Windows service started")
         config_path = shared_config_path()
@@ -66,7 +67,12 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
         while not self.stop_event.is_set():
             try:
                 config = __import__("main").load_config(str(config_path))
-                heartbeat(config)
+                hb_ok, hb_msg = heartbeat(config)
+                if not hb_ok and ("re_register" in str(hb_msg).lower() or "not found" in str(hb_msg).lower()):
+                    logging.warning("Endpoint not found during heartbeat (%s), re-registering...", hb_msg)
+                    reg_ok, _ = register(str(config_path))
+                    if reg_ok:
+                        config = __import__("main").load_config(str(config_path))
 
                 if threat_system and threat_system.get("enabled"):
                     command, error = check_pending_scan_commands(config)
@@ -102,4 +108,15 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
 
 
 def run_service() -> None:
-    win32serviceutil.HandleCommandLine(KuaminiSecurityClientService)
+    import sys
+    import servicemanager
+
+    if len(sys.argv) == 1 or (len(sys.argv) > 1 and sys.argv[1].lower() in ("--service", "/service")):
+        try:
+            servicemanager.Initialize()
+            servicemanager.PrepareToHostSingle(KuaminiSecurityClientService)
+            servicemanager.StartServiceCtrlDispatcher()
+        except Exception as e:
+            logging.exception("Failed to start ServiceControlDispatcher: %s", e)
+    else:
+        win32serviceutil.HandleCommandLine(KuaminiSecurityClientService)

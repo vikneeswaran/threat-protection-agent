@@ -1,209 +1,96 @@
-#Requires -RunAsAdministrator
-<#
-.SYNOPSIS
-Kuamini Security Client Installer - Helper Script
-
-This script extracts the registration token and passes it to the MSI installer.
-Run this script from the extracted ZIP folder containing:
-- KuaminiSecurityClient-<latest>.msi
-- registration.token
-
-.EXAMPLE
-.\install-helper.ps1
-#>
-
-param(
-    [Parameter(Mandatory = $false)]
-    [switch]$Quiet
-)
+﻿#Requires -RunAsAdministrator
+[CmdletBinding()]
+param()
 
 $ErrorActionPreference = "Stop"
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+$installPath = "C:\Program Files\Kuamini Security Client"
+$userConfigDirectory = Join-Path $env:LOCALAPPDATA "KuaminiSecurityClient"
+$serviceConfigDirectory = Join-Path $env:ProgramData "KuaminiSecurityClient"
 
-# ============================================================================
-# VALIDATE ENVIRONMENT
-# ============================================================================
-
-Write-Host "Kuamini Security Client Installer"  -ForegroundColor Green
-
-# Check for required files
-$msiPath = Get-ChildItem -Path $scriptPath -Filter "KuaminiSecurityClient-*.msi" -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match '^KuaminiSecurityClient-\d+\.\d+\.\d+(\.\d+)?\.msi$' } |
-    Sort-Object {
-        $v = [regex]::Match($_.Name, 'KuaminiSecurityClient-(\d+\.\d+\.\d+(?:\.\d+)?)\.msi').Groups[1].Value.Split('.')
-        [Version](($v + @("0","0","0","0"))[0..3] -join '.')
-    } -Descending |
-    Select-Object -First 1 -ExpandProperty FullName
-$tokenPath = Join-Path $scriptPath "registration.token"
-
-if (!(Test-Path $msiPath)) {
-    Write-Host "ERROR: MSI file not found in current directory" -ForegroundColor Red
-    Write-Host "Expected: $msiPath" -ForegroundColor Red
+function Stop-Install {
+    param([string]$Message)
+    Write-Host "ERROR: $Message" -ForegroundColor Red
     exit 1
 }
 
-if (!(Test-Path $tokenPath)) {
-    Write-Host "ERROR: registration.token file not found in current directory" -ForegroundColor Red
-    Write-Host "Expected: $tokenPath" -ForegroundColor Red
-    exit 1
+function Get-RegistrationToken {
+    foreach ($name in @("registration.token", "registration_token.txt")) {
+        $path = Join-Path $scriptDirectory $name
+        if (Test-Path $path) {
+            $token = (Get-Content $path -Raw -Encoding UTF8).Trim()
+            if ($token.Length -gt 50 -and $token -ne "placeholder-token") {
+                return $token
+            }
+        }
+    }
+
+    Stop-Install "A valid registration token was not found next to the installer."
 }
 
-Write-Host "Found MSI: $(Split-Path -Leaf $msiPath)" -ForegroundColor Cyan
-Write-Host "Found token: $(Split-Path -Leaf $tokenPath)" -ForegroundColor Cyan
-
-# ============================================================================
-# READ TOKEN
-# ============================================================================
-
-Write-Host "Reading registration token..." -ForegroundColor Yellow
-$token = (Get-Content $tokenPath -Raw).Trim()
-
-if (-not $token) {
-    Write-Host "ERROR: registration.token is empty" -ForegroundColor Red
-    exit 1
+function Get-InstallerMsi {
+    $msi = Get-ChildItem -Path $scriptDirectory -Filter "KuaminiSecurityClient-*.msi" -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (-not $msi) {
+        Stop-Install "KuaminiSecurityClient MSI was not found next to this helper."
+    }
+    return $msi.FullName
 }
 
-if ($token.Length -ne 128) {
-    Write-Host "ERROR: Invalid registration token length. Expected exactly 128 characters, got $($token.Length)." -ForegroundColor Red
-    exit 1
+function Write-AgentConfig {
+    param(
+        [string]$Directory,
+        [string]$Token,
+        [string]$AgentId
+    )
+
+    New-Item -ItemType Directory -Path $Directory -Force | Out-Null
+    $config = [ordered]@{
+        api_base = "https://kuaminisystems.com/api/securityagent/agent"
+        console_url = "https://kuaminisystems.com/securityAgent"
+        registration_token = $Token
+        agent_id = $AgentId
+        auto_register = $true
+        heartbeat_interval = 60
+    }
+    $config | ConvertTo-Json | Set-Content (Join-Path $Directory "config.json") -Encoding UTF8 -NoNewline
+    Set-Content (Join-Path $Directory "registration.token") -Value $Token -Encoding UTF8 -NoNewline
 }
 
-Write-Host "Token loaded successfully (128 characters)" -ForegroundColor Cyan
-
-# ============================================================================
-# INSTALL MSI WITH TOKEN
-# ============================================================================
-
-Write-Host "Installing Kuamini Security Client..." -ForegroundColor Yellow
-Write-Host ""
-
-$tempLogFile = Join-Path $env:TEMP "kuamini-install-$(Get-Random).log"
+Write-Host "Installing Kuamini Security Client v1.0.38" -ForegroundColor Green
+$token = Get-RegistrationToken
+$msiPath = Get-InstallerMsi
+$agentId = [guid]::NewGuid().ToString()
 
 try {
-    # Create config directory early
-    $configDir = Join-Path $env:LOCALAPPDATA "KuaminiSecurityClient"
-    New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-    
-    # Write token to installation config directory (backup location)
-    $backupTokenPath = Join-Path $configDir "registration.token"
-    Set-Content -Path $backupTokenPath -Value $token -Encoding UTF8 -NoNewline
-    Write-Host "Token written to: $backupTokenPath" -ForegroundColor Cyan
-    
-    # Run MSI with token passed as property
-    $processSplat = @{
-        FilePath = "msiexec.exe"
-        ArgumentList = @(
-            "/i", $msiPath,
-            "REGISTRATIONTOKEN=`"$token`"",
-            "/L*V", $tempLogFile,
-            "/passive"
-        )
-        Wait = $true
-        NoNewWindow = $false
-    }
-    
-    $process = Start-Process @processSplat -PassThru
-    $exitCode = $process.ExitCode
-    
-    if ($exitCode -ne 0) {
-        Write-Host "MSI installation failed with exit code: $exitCode" -ForegroundColor Red
-        Write-Host "Log file: $tempLogFile" -ForegroundColor Yellow
-        Get-Content $tempLogFile -Tail 50 | Write-Host
-        exit $exitCode
-    }
-    
-    Write-Host "MSI installation completed successfully" -ForegroundColor Green
-    
-    # ============================================================================
-    # START AGENT IMMEDIATELY (Don't wait for reboot)
-    # ============================================================================
-    
-    Write-Host ""
-    Write-Host "Starting agent..." -ForegroundColor Yellow
-    
-    $exePath = "C:\Program Files\Kuamini Security Client\KuaminiSecurityClient.exe"
-    if (Test-Path $exePath) {
-        try {
-            Start-Process $exePath -ErrorAction Stop
-            Start-Sleep -Seconds 2
-            Write-Host "Agent started successfully" -ForegroundColor Green
-        } catch {
-            Write-Host "WARNING: Could not start agent: $($_.Exception.Message)" -ForegroundColor Yellow
-            Write-Host "Agent will start on next login (autostart configured)" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "WARNING: Executable not found at $exePath" -ForegroundColor Yellow
-    }
-    
-    # ============================================================================
-    # VERIFY INSTALLATION
-    # ============================================================================
-    
-    Write-Host ""
-    Write-Host "Verifying installation..." -ForegroundColor Yellow
-    
-    Start-Sleep -Seconds 3
-    
-    $installPath = "C:\Program Files\Kuamini Security Client"
-    if (!(Test-Path $installPath)) {
-        Write-Host "ERROR: Installation path not found: $installPath" -ForegroundColor Red
-        exit 1
-    }
-    
-    Write-Host "Installation directory exists" -ForegroundColor Cyan
-    
-    # Check for registration.token
-    $installedTokenPath = Join-Path $installPath "registration.token"
-    if (Test-Path $installedTokenPath) {
-        Write-Host "Token file created in install directory" -ForegroundColor Cyan
-    } else {
-        Write-Host "Note: Token file not in install directory, checking backup location" -ForegroundColor Yellow
-        if (Test-Path $backupTokenPath) {
-            Write-Host "Token found in config directory - agent will use this" -ForegroundColor Cyan
-        }
-    }
-    
-    # Check for config
-    $configPath = Join-Path $configDir "config.json"
-    if (Test-Path $configPath) {
-        Write-Host "Config file exists" -ForegroundColor Cyan
-        $config = Get-Content $configPath | ConvertFrom-Json
-        Write-Host "Account ID: $($config.account_id)" -ForegroundColor Cyan
-    } else {
-        Write-Host "Config not yet created (agent will create it on first run)" -ForegroundColor Cyan
-    }
-    
-    # Check if process is running
-    $process = Get-Process KuaminiSecurityClient -ErrorAction SilentlyContinue
-    if ($process) {
-        Write-Host "OK: Agent process is running (PID: $($process.Id))" -ForegroundColor Green
-    } else {
-        Write-Host "WARNING: Agent process not running (may be starting or blocked by antivirus)" -ForegroundColor Yellow
-        Write-Host "If you see a SmartScreen or Defender warning, please allow it to run." -ForegroundColor Yellow
-    }
-    
-    Write-Host ""
-    Write-Host "Installation completed successfully!" -ForegroundColor Green
-    Write-Host "The Kuamini Security Client agent is starting now." -ForegroundColor Cyan
-    Write-Host "Look for the tray icon in the Windows system tray (bottom-right corner)." -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "Agent will also auto-start on Windows login." -ForegroundColor Cyan
-    
-    if (!(Test-Path "C:\Program Files\Kuamini Security Client\KuaminiSecurityClient.exe")) {
-        Write-Host ""
-        Write-Host "WARNING: Executable not found. Checking logs:" -ForegroundColor Yellow
-        Get-Content $tempLogFile -Tail 30 | Write-Host
-    }
-    
-    # Clean up log
-    Remove-Item $tempLogFile -Force -ErrorAction SilentlyContinue
-    
+    Write-AgentConfig -Directory $userConfigDirectory -Token $token -AgentId $agentId
+    Write-AgentConfig -Directory $serviceConfigDirectory -Token $token -AgentId $agentId
 } catch {
-    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Full error: $_" -ForegroundColor Red
-    if (Test-Path $tempLogFile) {
-        Get-Content $tempLogFile -Tail 50 | Write-Host
-    }
-    exit 1
+    Stop-Install "Unable to write agent configuration: $($_.Exception.Message)"
 }
 
+$msiLog = Join-Path $env:TEMP "kuamini-install-$([guid]::NewGuid()).log"
+$msiArguments = @("/i", "`"$msiPath`"", "REGISTRATIONTOKEN=`"$token`"", "/passive", "/norestart", "/L*V", "`"$msiLog`"")
+$process = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArguments -PassThru -Wait
+if ($process.ExitCode -notin @(0, 3010)) {
+    if (Test-Path $msiLog) {
+        Write-Host "--- MSI Installation Error Log (Tail 30 lines) ---" -ForegroundColor Yellow
+        Get-Content $msiLog -Tail 30 | Write-Host
+    }
+    Stop-Install "MSI installation failed with exit code $($process.ExitCode). See log at $msiLog"
+}
+
+$agentExe = Join-Path $installPath "KuaminiSecurityClient.exe"
+if (-not (Test-Path $agentExe)) {
+    Stop-Install "Installed agent executable was not found at $agentExe"
+}
+
+$service = Get-Service -Name "KuaminiSecurityClient" -ErrorAction SilentlyContinue
+if (-not $service) {
+    Stop-Install "The Kuamini Windows service was not installed. This installer package is outdated."
+}
+
+Start-Service -Name "KuaminiSecurityClient" -ErrorAction SilentlyContinue
+Start-Process -FilePath $agentExe -ErrorAction Stop
+Write-Host "Kuamini service and tray client started successfully." -ForegroundColor Green
