@@ -38,11 +38,34 @@ function Get-InstallerMsi {
     return $msi.FullName
 }
 
+# Added for today's requirement:
+# Determine the actual agent version from the MSI filename.
+function Get-AgentVersion {
+    param(
+        [string]$MsiPath
+    )
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($MsiPath)
+
+    if ($fileName -notmatch '^KuaminiSecurityClient-(.+)$') {
+        Stop-Install "Unable to determine agent version from MSI filename: $fileName"
+    }
+
+    $version = $Matches[1]
+
+    if ($version -notmatch '^\d+(\.\d+){1,3}$') {
+        Stop-Install "Invalid agent version detected from MSI filename: $version"
+    }
+
+    return $version
+}
+
 function Write-AgentConfig {
     param(
         [string]$Directory,
         [string]$Token,
-        [string]$AgentId
+        [string]$AgentId,
+        [string]$AgentVersion
     )
 
     New-Item -ItemType Directory -Path $Directory -Force | Out-Null
@@ -51,6 +74,11 @@ function Write-AgentConfig {
         console_url = "https://kuaminisystems.com/securityAgent"
         registration_token = $Token
         agent_id = $AgentId
+
+        # Added for today's requirement:
+        # Persist the actual installed agent version.
+        agent_version = $AgentVersion
+
         auto_register = $true
         heartbeat_interval = 60
     }
@@ -58,14 +86,29 @@ function Write-AgentConfig {
     Set-Content (Join-Path $Directory "registration.token") -Value $Token -Encoding UTF8 -NoNewline
 }
 
-Write-Host "Installing Kuamini Security Client v1.0.38" -ForegroundColor Green
 $token = Get-RegistrationToken
 $msiPath = Get-InstallerMsi
+
+# Added for today's requirement:
+# Extract the actual version from the MSI filename.
+$agentVersion = Get-AgentVersion -MsiPath $msiPath
+
+Write-Host "Installing Kuamini Security Client v$agentVersion" -ForegroundColor Green
+
 $agentId = [guid]::NewGuid().ToString()
 
 try {
-    Write-AgentConfig -Directory $userConfigDirectory -Token $token -AgentId $agentId
-    Write-AgentConfig -Directory $serviceConfigDirectory -Token $token -AgentId $agentId
+    Write-AgentConfig `
+        -Directory $userConfigDirectory `
+        -Token $token `
+        -AgentId $agentId `
+        -AgentVersion $agentVersion
+
+    Write-AgentConfig `
+        -Directory $serviceConfigDirectory `
+        -Token $token `
+        -AgentId $agentId `
+        -AgentVersion $agentVersion
 } catch {
     Stop-Install "Unable to write agent configuration: $($_.Exception.Message)"
 }

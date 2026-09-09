@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import socket
 import ipaddress
+import platform
 from pathlib import Path
 from typing import Tuple
 from urllib.parse import urlparse
@@ -18,6 +19,22 @@ import logging
 from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
+
+def get_os_version():
+    """Return the operating system version."""
+    try:
+        if os.name == "nt":
+            version = platform.win32_ver()[0]
+            release = platform.win32_ver()[2]
+
+            if version and release:
+                return f"{version} {release}"
+
+            return version or release or "unknown"
+
+        return platform.release() or "unknown"
+    except Exception:
+        return "unknown"
 
 # --- SINGLETON ENFORCEMENT ---
 def is_another_instance_running():
@@ -136,11 +153,21 @@ def heartbeat(config):
       - dict config (preferred)
       - config path (legacy compatibility)
     """
+    global AGENT_VERSION
+
     if isinstance(config, dict):
         cfg = config
     else:
         cfg = _load_config(config)
 
+    if AGENT_VERSION == "unknown":
+        config_agent_version = get_config_agent_version(cfg)
+        if config_agent_version != "unknown":
+            AGENT_VERSION = config_agent_version
+            logging.info(
+                "Agent version loaded from config for heartbeat: %s",
+                AGENT_VERSION,
+            )
     agent_id = cfg.get("agent_id")
     account_id = cfg.get("account_id")
     endpoint_id = cfg.get("endpoint_id")
@@ -175,6 +202,7 @@ def heartbeat(config):
         "installation_instance_id": installation_instance_id,
         "hostname": socket.gethostname(),
         "os": "windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux"),
+        "os_version": get_os_version(),
         "agent_version": AGENT_VERSION,
         "local_ip": local_ip,
         "mac_address": mac,
@@ -250,7 +278,7 @@ def setup_ca_bundle():
         # Running as compiled PyInstaller executable
         exe_dir = Path(sys.executable).parent
         resources_dir = exe_dir.parent / "Resources"
-        
+
         # Try common cert bundle paths in this order:
         possible_paths = [
             resources_dir / "certifi" / "cacert.pem",
@@ -258,13 +286,13 @@ def setup_ca_bundle():
             Path("/etc/ssl/certs/ca-certificates.crt"),
             Path("/etc/ssl/cert.pem"),
         ]
-        
+
         for cert_path in possible_paths:
             if cert_path.exists():
                 os.environ["REQUESTS_CA_BUNDLE"] = str(cert_path)
                 print(f"[CA Bundle] Set to: {cert_path}", file=sys.stderr)
                 return
-        
+
         # If no bundle found, let requests use system defaults (Windows handles this well)
         print("[CA Bundle] No custom cert bundle found, requests will use system defaults", file=sys.stderr)
 
@@ -273,15 +301,15 @@ def verify_installation():
     if not getattr(sys, 'frozen', False):
         # Not running as PyInstaller bundle, skip verification
         return
-    
+
     issues = []
-    
+
     # Check if running on macOS and app is in Applications
     if sys.platform == 'darwin':
         app_path = Path("/Applications/KuaminiSecurityClient.app")
         if not app_path.exists():
             issues.append("App bundle not found in /Applications")
-    
+
     # Determine config directories based on OS
     if os.name == "nt":
         # Windows: ensure both ProgramData (for service) and LOCALAPPDATA (for user) exist
@@ -291,7 +319,7 @@ def verify_installation():
     else:
         # macOS/Linux: use ~/.kuamini
         config_dirs = [Path.home() / ".kuamini"]
-    
+
     # Check config directories and create if missing
     for c_dir in config_dirs:
         if not c_dir.exists():
@@ -300,9 +328,9 @@ def verify_installation():
                 print(f"[Installation Fix] Created config directory: {c_dir}", file=sys.stderr)
             except Exception as e:
                 issues.append(f"Could not create config directory {c_dir}: {e}")
-    
+
     config_dir = config_dirs[0]
-    
+
     # Check config file and create default if missing in any config directory
     token_from_file = None
     token_file_path = None
@@ -321,7 +349,7 @@ def verify_installation():
                     break
                 except Exception as e:
                     print(f"[Installation Fix] Failed to read token file {token_filename}: {e}", file=sys.stderr)
-        
+
         # If not found in install dir, check ProgramData and LocalAppData token files
         if not token_from_file:
             for check_dir in [Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient",
@@ -379,23 +407,23 @@ def verify_installation():
                 if token_from_file:
                     default_config["registration_token"] = token_from_file
                     print(f"[Installation Fix] Added registration token to config in {c_dir}", file=sys.stderr)
-                
+
                 config_file.write_text(json.dumps(default_config, indent=2))
                 print(f"[Installation Fix] Created default config file: {config_file}", file=sys.stderr)
             except Exception as e:
                 issues.append(f"Could not create config file in {c_dir}: {e}")
-    
+
     # Check LaunchAgent on macOS
     if sys.platform == 'darwin':
         plist_path = Path.home() / "Library/LaunchAgents/com.kuamini.securityclient.plist"
         if not plist_path.exists():
             print(f"[Installation Fix] LaunchAgent plist not found: {plist_path}", file=sys.stderr)
             print("[Installation Fix] Agent will need to be manually started or loaded via launchctl", file=sys.stderr)
-    
+
     # Log any issues
     if issues:
         print(f"[Installation Issues] {', '.join(issues)}", file=sys.stderr)
-    
+
     return len(issues) == 0
 
 # Verify installation and setup CA bundle before any other operations
@@ -418,12 +446,12 @@ def get_config_path() -> Path:
         user_config_alt = Path.home() / ".kuamini" / "config.json"
         if user_config_alt.exists():
             return user_config_alt
-    
+
     # 1. User data directory (~/.kuamini/config.json) - prioritize user config which was created on first run
     user_config = Path.home() / ".kuamini" / "config.json"
     if user_config.exists():
         return user_config
-    
+
     # 2. Check next to executable (Windows installer uses this)
     if getattr(sys, 'frozen', False):
         exe_dir = Path(sys.executable).parent
@@ -431,7 +459,7 @@ def get_config_path() -> Path:
         if candidate.exists():
             logging.info("Found config next to executable: %s", candidate)
             return candidate
-        
+
         # Check for bundled config in Resources folder (macOS .app structure)
         resources_dir = exe_dir.parent / "Resources"
         bundled_config = resources_dir / "config.json"
@@ -443,13 +471,13 @@ def get_config_path() -> Path:
             shutil.copy2(bundled_config, user_config)
             logging.info("Copied bundled config to user directory: %s", user_config)
             return user_config
-    
+
     # 3. Next to the script (for development)
     script_dir = Path(__file__).parent
     candidate = script_dir / "config.json"
     if candidate.exists():
         return candidate
-    
+
     # 4. Fallback: use Windows-specific path if on Windows, otherwise user home
     if os.name == "nt":
         localappdata = Path(os.environ.get("LOCALAPPDATA", Path.home()))
@@ -482,26 +510,26 @@ def _decode_account_id_from_token(token: str | None) -> str | None:
         # Token might be in JWT format with newlines: header.payload.signature
         # Clean whitespace completely - JSON might have formatted it across multiple lines
         cleaned = ''.join(str(token).split())  # Remove all whitespace
-        
+
         # Split by dot to get parts
         parts = cleaned.split(".")
         if len(parts) < 1:
             logging.warning("Token does not appear valid (empty)")
             return None
-        
+
         # Try different parts as payload (account info can be in different positions)
         # Usually position 0 or 1, depending on JWT format
         for part_index in [0, 1]:
             if part_index >= len(parts):
                 continue
-                
+
             try:
                 payload = parts[part_index]
                 # Add padding if necessary (base64 requires length to be multiple of 4)
                 padding_needed = len(payload) % 4
                 if padding_needed:
                     payload += "=" * (4 - padding_needed)
-                
+
                 # Try to decode
                 decoded = base64.b64decode(payload).decode("utf-8")
                 obj = json.loads(decoded)
@@ -512,7 +540,7 @@ def _decode_account_id_from_token(token: str | None) -> str | None:
             except Exception:
                 # This part didn't have the account_id, try next
                 continue
-                
+
         # If we get here, couldn't decode account_id from any part
         logging.debug("Could not find account_id in any token part")
         return None
@@ -540,6 +568,17 @@ def load_config(config_path=None):
         return _load_config(config_path)
     except Exception:
         return {}
+
+def get_config_agent_version(config):
+    """Return the configured agent version when available."""
+    if not isinstance(config, dict):
+        return "unknown"
+
+    return (
+        config.get("agent_version")
+        or config.get("installer_version")
+        or "unknown"
+    )
 
 
 def _save_config(config_path, cfg):
@@ -575,10 +614,10 @@ def make_icon(status_color=(46, 204, 113), status_text=""):
     """Generate a circular status icon with optional status indicator in the corner."""
     img = Image.new("RGB", (64, 64), (255, 255, 255))
     draw = ImageDraw.Draw(img)
-    
+
     # Main circle (status indicator)
     draw.ellipse((8, 8, 56, 56), fill=status_color, outline=(40, 40, 40), width=2)
-    
+
     # Status text or dot
     if status_text:
         try:
@@ -587,7 +626,7 @@ def make_icon(status_color=(46, 204, 113), status_text=""):
             draw.ellipse((48, 48, 62, 62), fill=indicator_color, outline=(40, 40, 40), width=1)
         except Exception as e:
             logging.debug("Could not draw status indicator: %s", e)
-    
+
     return img.resize((64, 64), _antialias_filter())
 
 
@@ -798,6 +837,7 @@ def register(config):
         "platform": "Windows" if os.name == "nt" else ("macOS" if sys.platform == "darwin" else "Linux"),
         "hostname": socket.gethostname(),
         "os": "windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux"),
+        "os_version": get_os_version(),
         "local_ip": local_ip,
         "mac_address": mac,
         "public_ip": get_public_ip(),
@@ -875,10 +915,10 @@ def check_pending_scan_commands(config):
     """Check if there are any pending scan commands from the console"""
     agent_id = config.get("agent_id")
     account_id = config.get("account_id")
-    
+
     if not agent_id or not account_id:
         return None, "Missing agent_id or account_id"
-    
+
     try:
         url = build_api_url(config, "scan-commands")
         logging.debug("Checking for pending scan commands")
@@ -891,7 +931,7 @@ def check_pending_scan_commands(config):
         if resp.status_code >= 400:
             logging.debug("Scan command check HTTP %s", resp.status_code)
             return None, f"HTTP {resp.status_code}"
-        
+
         body = resp.json()
         if body.get("has_pending_command"):
             return body.get("command"), None
@@ -976,6 +1016,7 @@ def report_threat_action_command_result(
 ) -> Tuple[bool, str]:
     agent_id = config.get("agent_id")
     account_id = config.get("account_id")
+
 
     if not all([agent_id, account_id, command_id]):
         return False, "Missing required config fields"
@@ -1076,15 +1117,24 @@ def tray_main():
 
     try:
         config = load_config()
+
+
+
         try:
             logging.info("Resolved config path: %s", get_config_path())
             logging.info("Configured api_base: %s", config.get("api_base"))
             logging.info("Configured server_url: %s", config.get("server_url"))
         except Exception:
             pass
+
         logging.info("Config loaded successfully in tray_main")
+
     except Exception as e:
-        logging.error("Failed to load config in tray_main: %s", e, exc_info=True)
+        logging.error(
+            "Failed to load config in tray_main: %s",
+            e,
+            exc_info=True,
+        )
         config = {}
     service_managed = is_windows_service_running()
     threat_system = (
@@ -1993,11 +2043,11 @@ def tray_main():
 
                 # First, check for pending remote scan commands
                 pending_command, cmd_error = check_pending_scan_commands(config)
-                
+
                 if pending_command:
                     logging.info(f"?? Executing remote scan command: {pending_command.get('scan_type')}")
                     set_status(f"Remote scan: {pending_command.get('scan_type')}", (241, 196, 15))
-                    
+
                     # Execute the requested scan type
                     scan_mode = pending_command.get("scan_type", "quick").lower()
                     command_id = pending_command.get("id")
@@ -2019,7 +2069,7 @@ def tray_main():
                     notify("Threat detected", f"{report.total_threats} threats found")
                     logging.warning(f"??  {report.total_threats} threats detected - {report.critical_count} critical, {report.high_count} high")
                 _report_and_handle_actions(report)
-                
+
                 # If this was a remote command, report its completion
                 if command_id and pending_command:
                     success, msg = report_scan_command_result(
@@ -2040,7 +2090,7 @@ def tray_main():
                         logging.info(f"? Remote scan command completed and reported")
                     else:
                         logging.warning(f"??  Failed to report remote scan completion: {msg}")
-                
+
                 # Determine wait interval
                 if command_id:
                     # If this was a remote command, check more frequently for the next one
@@ -2048,7 +2098,7 @@ def tray_main():
                 else:
                     # Normal scheduled scan interval
                     wait_interval = int(threat_policy.get("scan_interval") or 3600)
-                
+
             except Exception as e:
                 logging.error("Threat scan loop error: %s", e, exc_info=True)
                 wait_interval = 300  # Wait 5 minutes on error before retrying
@@ -2064,17 +2114,17 @@ def tray_main():
 
                 logging.debug("Running real-time threat monitor")
                 report = threat_system["engine"].realtime_scan()
-                
+
                 if report and report.total_threats > 0:
                     logging.warning(f"?? Real-time alert: {report.total_threats} threats detected")
-                    
+
                     # Report critical and high severity threats immediately
                     critical_threats = [t for t in (report.threats or []) if t.get("severity") in ["critical", "high"]]
                     if critical_threats:
                         threat_names = ", ".join([t.get("threat_name", "Unknown") for t in critical_threats[:3]])
                         notify("?? Critical Threat Detected", f"{len(critical_threats)} critical/high threats: {threat_names}")
                         logging.error(f"?? CRITICAL THREATS DETECTED: {threat_names}")
-                    
+
                     # Report all threats
                     _report_and_handle_actions(report)
             except Exception as e:
@@ -2149,11 +2199,11 @@ def tray_main():
         ])
 
         return pystray.Menu(*items)
-    
+
     icon.menu = build_menu()
 
     set_status("Starting")
-    
+
     # Auto-register on startup (works with or without registration_token)
     if config.get("auto_register"):
         set_status("Registering...")
@@ -2162,7 +2212,7 @@ def tray_main():
         if ok:
             logging.info("? Auto-registration successful: %s", res)
             set_status("Registered, preparing heartbeat")
-            
+
             # Trigger initial scan after successful registration
             if threat_system.get("enabled"):
                 logging.info("?? Triggering initial scan after registration...")
@@ -2181,13 +2231,13 @@ def tray_main():
                     except Exception as e:
                         logging.error("Initial scan failed: %s", e, exc_info=True)
                         set_status("Initial scan failed", (231, 76, 60))
-                
+
                 # Run initial scan in background thread
                 threading.Thread(target=_run_initial_scan, daemon=True).start()
         else:
             logging.warning("? Auto-registration failed: %s", res)
             set_status("Registration failed, retrying on heartbeat")
-    
+
     threading.Thread(target=heartbeat_loop, daemon=True).start()
 
     if threat_system.get("enabled"):
@@ -2197,7 +2247,7 @@ def tray_main():
 
     # Set initial icon based on status
     set_status(status["text"], status["color"])
-    
+
     # Run the tray icon with error recovery
     try:
         logging.info("Starting tray icon message loop...")
@@ -2216,11 +2266,11 @@ def tray_main():
 def background_agent_mode(config):
     """Run as background agent without tray UI (fallback mode)."""
     logging.info("Running in background-only mode")
-    
-    stop_event = threading.Event()
-    
 
-    
+    stop_event = threading.Event()
+
+
+
     def log_to_emergency_file(msg: str):
         """Write to emergency log file even if regular logging fails."""
         try:
@@ -2229,10 +2279,10 @@ def background_agent_mode(config):
                 log_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "KuaminiSecurityClient"
             else:
                 log_dir = Path.home() / ".local" / "share" / "KuaminiSecurityClient"
-            
+
             log_dir.mkdir(parents=True, exist_ok=True)
             error_log = log_dir / "startup_errors.log"
-            
+
             with open(error_log, "a", encoding="utf-8") as f:
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"[{timestamp}] {msg}\n")
@@ -2243,7 +2293,7 @@ def background_agent_mode(config):
     # Ensure all output is captured, even on early crashes
     safe_print("[STARTUP] Agent starting...")
     log_to_emergency_file("Agent starting...")
-    
+
     # Check for singleton enforcement early
     try:
         if is_another_instance_running():
@@ -2255,7 +2305,7 @@ def background_agent_mode(config):
         msg = f"Failed to check for running instances: {e}"
         safe_print(f"[WARNING] {msg}")
         log_to_emergency_file(msg)
-    
+
     try:
         safe_print("[STARTUP] About to call tray_main()")
         log_to_emergency_file("Calling tray_main()")
@@ -2269,7 +2319,7 @@ def background_agent_mode(config):
         msg = f"Exception before setup_logging: {type(e).__name__}: {e}"
         safe_print(f"[ERROR] {msg}")
         log_to_emergency_file(msg)
-        
+
         import traceback
         stream = sys.stderr or sys.stdout
         if stream:
@@ -2278,14 +2328,14 @@ def background_agent_mode(config):
                 stream.flush()
             except Exception:
                 pass
-        
+
         # Write full traceback to emergency log
         try:
             tb_str = traceback.format_exc()
             log_to_emergency_file(f"Full traceback:\n{tb_str}")
         except Exception:
             pass
-        
+
         # Try to also setup logging and log the error
         try:
             setup_logging()
