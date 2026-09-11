@@ -827,6 +827,8 @@ def register(config):
     else:
         config_path = config
         cfg = _load_config(config_path)
+    cfg["agent_version"] = AGENT_VERSION
+
 
     local_ip, mac = get_network_info()
     payload = {
