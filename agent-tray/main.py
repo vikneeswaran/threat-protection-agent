@@ -820,6 +820,8 @@ def get_public_ip(force_refresh: bool = False) -> str | None:
 
 
 def register(config):
+    global AGENT_VERSION
+
     # Accept dict or config path
     if isinstance(config, dict):
         cfg = config
@@ -827,7 +829,10 @@ def register(config):
     else:
         config_path = config
         cfg = _load_config(config_path)
-    cfg["agent_version"] = AGENT_VERSION
+    if AGENT_VERSION == "unknown":
+        config_agent_version = get_config_agent_version(cfg)
+        if config_agent_version != "unknown":
+            AGENT_VERSION = config_agent_version
 
 
     local_ip, mac = get_network_info()
