@@ -1151,8 +1151,12 @@ def tray_main():
     )
 
     status = {"text": "Idle", "color": (46, 204, 113)}
+    current_version = get_config_agent_version(config)
+    if current_version == "unknown":
+        current_version = AGENT_VERSION
+
     update_state = {
-        "current_version": AGENT_VERSION,
+        "current_version": current_version,
         "latest_version": None,
         "download_url": None,
         "installer_filename": None,
