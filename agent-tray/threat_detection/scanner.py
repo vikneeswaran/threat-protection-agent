@@ -133,49 +133,22 @@ class FileScanner:
         return None
 
     def _check_file_hash(self, file_path: Path) -> ThreatDetection | None:
-        """Check file against known malware hashes, skip whitelisted hashes, enforce persistent action policy"""
+        """Check file against known malware hashes and skip whitelisted hashes."""
         file_hash = self._calculate_hash(file_path)
+
         if not file_hash:
             return None
+
         # Check whitelist first
         if file_hash in self._load_whitelist():
             self._log(f"Skipping whitelisted hash: {file_hash}", "info")
             return None
-        # Check persistent action policy (allow/quarantine)
-        action_policy = self._fetch_action_policy(file_hash)
-        if action_policy == "allow":
-            self._log(f"[POLICY] Auto-allowing file hash: {file_hash}", "info")
-            return None
-        if action_policy == "quarantine":
-            self._log(f"[POLICY] Auto-quarantining file hash: {file_hash}", "info")
-            # Simulate a threat detection for auto-quarantine
-            for sig in THREAT_SIGNATURES.values():
-                if sig.hashes and file_hash in sig.hashes:
-                    return ThreatDetection(
-                        threat_id=sig.id,
-                        threat_name=sig.name,
-                        threat_type=sig.type,
-                        severity=sig.severity,
-                        file_path=str(file_path),
-                        file_hash=file_hash,
-                        detection_engine="signature",
-                        details={"signature_id": sig.id, "description": sig.description, "auto_quarantine": True}
-                    )
-            # If not in signature DB, still return a generic detection
-            return ThreatDetection(
-                threat_id="auto_quarantine",
-                threat_name="Auto-Quarantine",
-                threat_type="policy",
-                severity="critical",
-                file_path=str(file_path),
-                file_hash=file_hash,
-                detection_engine="policy",
-                details={"auto_quarantine": True}
-            )
+
         # Check against signature database
         for sig in THREAT_SIGNATURES.values():
             if sig.hashes and file_hash in sig.hashes:
                 self._log(f"THREAT DETECTED: {sig.name} in {file_path}")
+
                 return ThreatDetection(
                     threat_id=sig.id,
                     threat_name=sig.name,
@@ -184,10 +157,14 @@ class FileScanner:
                     file_path=str(file_path),
                     file_hash=file_hash,
                     detection_engine="signature",
-                    details={"signature_id": sig.id, "description": sig.description}
+                    details={
+                        "signature_id": sig.id,
+                        "description": sig.description,
+                    },
                 )
+
         return None
-    
+
     def _check_file_pattern(self, file_path: Path) -> ThreatDetection | None:
         """Check file against pattern-based signatures"""
         file_name = file_path.name

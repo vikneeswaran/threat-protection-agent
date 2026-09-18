@@ -228,8 +228,19 @@ def heartbeat(config):
             resp.raise_for_status()
 
         logger.info("Heartbeat successful")
-        return True, "ok"
 
+        try:
+            heartbeat_data = resp.json() if resp is not None else {}
+        except Exception:
+            heartbeat_data = {}
+
+        if isinstance(heartbeat_data, dict):
+            logging.info(
+                "Heartbeat response: policies=%s",
+                len(heartbeat_data.get("policies") or [])
+            )
+
+        return True, heartbeat_data
     except Exception as e:
         logger.exception(
             "Heartbeat failed: %s; status=%s; body=%s; url=%s",
@@ -2365,7 +2376,3 @@ if __name__ == "__main__":
         run_service()
     else:
         tray_main()
-
-
-
-
