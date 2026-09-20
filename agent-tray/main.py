@@ -1195,6 +1195,54 @@ def tray_main():
 
     stop_event = threading.Event()
 
+    def shared_threat_state_path():
+        program_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
+        return program_data / "KuaminiSecurityClient" / "threat_state.json"
+
+    def threat_state_loop():
+        state_path = shared_threat_state_path()
+        last_signature = None
+
+        while not stop_event.is_set():
+            try:
+                if not state_path.exists():
+                    set_status("Protected by service", (46, 204, 113))
+                    stop_event.wait(3)
+                    continue
+
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                unresolved = bool(state.get("has_unresolved_threats"))
+                threats = state.get("threats") or []
+                signature = (
+                    unresolved,
+                    state.get("unresolved_count", len(threats)),
+                    tuple(
+                        str(t.get("threat_id") or t.get("threat_name") or t.get("file_path") or "")
+                        for t in threats
+                    ),
+                )
+
+                if unresolved:
+                    set_status("Threat detected", (231, 76, 60))
+
+                    if signature != last_signature:
+                        count = state.get("unresolved_count", len(threats))
+                        notify(
+                            "Threat detected",
+                            f"{count} unresolved threat{'s' if count != 1 else ''} require attention.",
+                        )
+                else:
+                    set_status("Protected by service", (46, 204, 113))
+
+                    if last_signature and last_signature[0]:
+                        notify("Threats resolved", "All detected threats have been resolved.")
+
+                last_signature = signature
+
+            except Exception:
+                logging.exception("Failed to read shared threat state")
+
+            stop_event.wait(3)
     def set_status(text, color=(46, 204, 113)):
         status["text"] = text
         status["color"] = color
@@ -1727,6 +1775,10 @@ def tray_main():
         threading.Thread(target=threat_scan_loop, daemon=True).start()
         threading.Thread(target=realtime_monitor_loop, daemon=True).start()
         threading.Thread(target=threat_action_loop, daemon=True).start()
+
+    # Monitor shared threat state written by the Windows service
+    if service_managed:
+        threading.Thread(target=threat_state_loop, daemon=True).start()
 
     # Set initial icon based on status
     set_status(status["text"], status["color"])
@@ -2267,6 +2319,10 @@ def tray_main():
         threading.Thread(target=realtime_monitor_loop, daemon=True).start()
         threading.Thread(target=threat_action_loop, daemon=True).start()
 
+    # Monitor shared threat state written by the Windows service
+    if service_managed:
+        threading.Thread(target=threat_state_loop, daemon=True).start()
+
     # Set initial icon based on status
     set_status(status["text"], status["color"])
 
@@ -2376,3 +2432,6 @@ if __name__ == "__main__":
         run_service()
     else:
         tray_main()
+
+
+

@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 import time
+import json
 from pathlib import Path
 
 import win32event
@@ -24,6 +25,115 @@ def shared_config_path() -> Path:
     program_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
     return program_data / "KuaminiSecurityClient" / "config.json"
 
+def shared_threat_state_path() -> Path:
+    program_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
+    return program_data / "KuaminiSecurityClient" / "threat_state.json"
+
+def process_threat_report(threat_system, report, endpoint_id, state_path):
+    """Report detected threats, execute recommended actions, and persist unresolved state."""
+    unresolved = []
+
+    ok, results = threat_system["reporter"].report_scan_results(
+        report,
+        endpoint_id=endpoint_id,
+    )
+
+    for index, result in enumerate(results):
+        threat = report.threats[index] if index < len(report.threats) else {}
+        response = result.get("result") if isinstance(result.get("result"), dict) else {}
+
+        if not result.get("success"):
+            unresolved.append(threat)
+            logging.warning(
+                "Threat report failed: %s",
+                threat.get("threat_name", "Unknown threat"),
+            )
+            continue
+
+        action = response.get("recommended_action") or response.get("auto_action")
+        threat_id = response.get("threat_id")
+
+        if not action:
+            unresolved.append(threat)
+            logging.warning(
+                "No remediation action returned for threat: %s",
+                threat.get("threat_name", "Unknown threat"),
+            )
+            continue
+
+        action = str(action).lower()
+        if action == "block":
+            action = "kill"
+
+        executor = threat_system["executor"]
+
+        if action == "quarantine" and threat.get("file_path"):
+            handled, message = executor.quarantine_file(threat["file_path"])
+        elif action == "restore" and threat.get("file_path"):
+            handled, message = executor.restore_file(threat["file_path"])
+        elif action == "delete" and threat.get("file_path"):
+            handled, message = executor.delete_file(threat["file_path"])
+        elif action == "kill" and threat.get("process_id"):
+            handled, message = executor.kill_process(int(threat["process_id"]))
+        elif action == "allow" and threat.get("file_hash"):
+            handled, message = executor.allow_threat(threat["file_hash"])
+        else:
+            handled = False
+            message = f"Unsupported or missing data for action: {action}"
+
+        if not handled:
+            unresolved.append(threat)
+            logging.warning(
+                "Threat action failed: %s - %s",
+                threat.get("threat_name", "Unknown threat"),
+                message,
+            )
+            continue
+
+        if threat_id:
+            status_map = {
+                "quarantine": "quarantined",
+                "kill": "killed",
+                "delete": "resolved",
+                "allow": "allowed",
+                "restore": "resolved",
+            }
+            status_ok, status_result = threat_system["reporter"].update_threat_status(
+                threat_id,
+                status_map.get(action, "resolved"),
+                action=action,
+            )
+
+            if not status_ok:
+                unresolved.append(threat)
+                logging.warning(
+                    "Threat action succeeded but server status update failed: %s",
+                    threat.get("threat_name", "Unknown threat"),
+                )
+                continue
+
+        logging.info(
+            "Threat resolved: %s (%s)",
+            threat.get("threat_name", "Unknown threat"),
+            action,
+        )
+
+    state_path = Path(state_path)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
+    state = {
+        "has_unresolved_threats": bool(unresolved),
+        "unresolved_count": len(unresolved),
+        "threats": unresolved,
+        "updated_at": time.time(),
+    }
+
+    state_path.write_text(
+        json.dumps(state, indent=2, default=str),
+        encoding="utf-8",
+    )
+
+    return ok, unresolved
 
 class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
     _svc_name_ = "KuaminiSecurityClient"
@@ -80,7 +190,12 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
                         scan_type = str(command.get("scan_type") or "quick").lower()
                         engine = threat_system["engine"]
                         report = engine.full_scan() if scan_type == "full" else engine.quick_scan()
-                        threat_system["reporter"].report_scan_results(report, endpoint_id=config.get("endpoint_id"))
+                        process_threat_report(
+                        threat_system,
+                        report,
+                        config.get("endpoint_id"),
+                        shared_threat_state_path(),
+                    )
                         report_scan_command_result(
                             config,
                             command_id=command["id"],
@@ -96,7 +211,12 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
                         )
                     elif time.monotonic() >= next_scan_at:
                         report = threat_system["engine"].quick_scan()
-                        threat_system["reporter"].report_scan_results(report, endpoint_id=config.get("endpoint_id"))
+                        process_threat_report(
+                            threat_system,
+                            report,
+                            config.get("endpoint_id"),
+                            shared_threat_state_path(),
+                        )
                         next_scan_at = time.monotonic() + int(config.get("threat_scan_interval") or 3600)
             except Exception:
                 logging.exception("Service protection cycle failed")

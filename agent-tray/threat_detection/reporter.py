@@ -237,7 +237,7 @@ class ThreatActionExecutor:
         import os
 
         if os.name == 'nt':
-            return Path.home() / "AppData" / "Local" / "KuaminiSecurityClient" / "Quarantine"
+            return Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "KuaminiSecurityClient" / "Quarantine"
         return Path.home() / ".kuamini" / "quarantine"
     
     def quarantine_file(self, file_path: str) -> Tuple[bool, str]:
