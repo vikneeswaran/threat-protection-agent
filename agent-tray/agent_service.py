@@ -5,6 +5,7 @@ import os
 import threading
 import time
 import json
+import hashlib
 from pathlib import Path
 
 import win32event
@@ -30,6 +31,20 @@ def shared_config_path() -> Path:
 def shared_threat_state_path() -> Path:
     program_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
     return program_data / "KuaminiSecurityClient" / "threat_state.json"
+
+def calculate_file_hash(file_path: str) -> str | None:
+    """Calculate SHA-256 hash for a file."""
+    try:
+        hash_obj = hashlib.sha256()
+
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                hash_obj.update(chunk)
+
+        return hash_obj.hexdigest()
+    except Exception as e:
+        logging.warning("Failed to calculate file hash for %s: %s", file_path, e)
+        return None
 
 def process_threat_report(threat_system, report, endpoint_id, state_path):
     """Report detected threats, execute recommended actions, and persist unresolved state."""
@@ -77,8 +92,18 @@ def process_threat_report(threat_system, report, endpoint_id, state_path):
             handled, message = executor.delete_file(threat["file_path"])
         elif action == "kill" and threat.get("process_id"):
             handled, message = executor.kill_process(int(threat["process_id"]))
-        elif action == "allow" and threat.get("file_hash"):
-            handled, message = executor.allow_threat(threat["file_hash"])
+        elif action == "allow":
+            file_hash = threat.get("file_hash")
+
+            if not file_hash and threat.get("file_path"):
+               file_hash = calculate_file_hash(threat["file_path"])
+
+            if file_hash:
+               handled, message = executor.allow_threat(file_hash)
+            else:
+                 handled = False
+                 message = "Unable to calculate file hash for allow action"
+
         else:
             handled = False
             message = f"Unsupported or missing data for action: {action}"
@@ -168,10 +193,16 @@ def execute_threat_action(
             int(threat["process_id"])
         )
 
-    if action == "allow" and threat.get("file_hash"):
-        return executor.allow_threat(
-            threat["file_hash"]
-        )
+    if action == "allow":
+       file_hash = threat.get("file_hash")
+
+       if not file_hash and threat.get("file_path"):
+        file_hash = calculate_file_hash(threat["file_path"])
+
+       if file_hash:
+        return executor.allow_threat(file_hash)
+
+       return False, "Unable to calculate file hash for allow action"
 
     return False, f"Unsupported or missing data for action: {action}"
 class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):

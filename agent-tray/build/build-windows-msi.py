@@ -98,7 +98,7 @@ Account ID: {account_id or '(not provided)'}
         "--add-data", str(agent_dir / "icon-green.png") + ";.",
         "--add-data", str(agent_dir / "icon-yellow.png") + ";.",
         "--add-data", str(agent_dir / "icon-red.png") + ";.",
-
+        "--add-data", str(agent_dir / "threat_detection" / "whitelist.json") + ";threat_detection",
         "--hidden-import", "agent_service",
         "--hidden-import", "threat_detection",
         "--hidden-import", "threat_detection.engine",
