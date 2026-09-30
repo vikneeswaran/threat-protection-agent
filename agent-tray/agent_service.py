@@ -45,106 +45,168 @@ def calculate_file_hash(file_path: str) -> str | None:
     except Exception as e:
         logging.warning("Failed to calculate file hash for %s: %s", file_path, e)
         return None
+def build_threat_action_policies(policies) -> dict:
+    """Build a threat_type -> action mapping from active heartbeat policies."""
+    threat_action_policies = {}
 
-def process_threat_report(threat_system, report, endpoint_id, state_path):
-    """Report detected threats, execute recommended actions, and persist unresolved state."""
-    unresolved = []
+    if not isinstance(policies, list):
+        return threat_action_policies
 
-    ok, results = threat_system["reporter"].report_scan_results(
-        report,
-        endpoint_id=endpoint_id,
-    )
-
-    for index, result in enumerate(results):
-        threat = report.threats[index] if index < len(report.threats) else {}
-        response = result.get("result") if isinstance(result.get("result"), dict) else {}
-
-        if not result.get("success"):
-            unresolved.append(threat)
-            logging.warning(
-                "Threat report failed: %s",
-                threat.get("threat_name", "Unknown threat"),
-            )
+    for policy in policies:
+        if not isinstance(policy, dict):
             continue
 
-        action = response.get("recommended_action") or response.get("auto_action")
-        threat_id = response.get("threat_id")
+        if not policy.get("is_active"):
+            continue
 
-        if not action:
-            unresolved.append(threat)
-            logging.warning(
-                "No remediation action returned for threat: %s",
-                threat.get("threat_name", "Unknown threat"),
-            )
+        if policy.get("status") != "active":
+            continue
+
+        if policy.get("type") != "threat_actions":
+            continue
+
+        config = policy.get("config")
+        if not isinstance(config, dict):
+            continue
+
+        threat_type = config.get("threatType")
+        action = config.get("action")
+
+        if not threat_type or not action:
             continue
 
         action = str(action).lower()
+
         if action == "block":
             action = "kill"
 
-        executor = threat_system["executor"]
+        threat_action_policies[str(threat_type).lower()] = action
 
-        if action == "quarantine" and threat.get("file_path"):
-            handled, message = executor.quarantine_file(threat["file_path"])
-        elif action == "restore" and threat.get("file_path"):
-            handled, message = executor.restore_file(threat["file_path"])
-        elif action == "delete" and threat.get("file_path"):
-            handled, message = executor.delete_file(threat["file_path"])
-        elif action == "kill" and threat.get("process_id"):
-            handled, message = executor.kill_process(int(threat["process_id"]))
-        elif action == "allow":
-            file_hash = threat.get("file_hash")
+    return threat_action_policies
 
-            if not file_hash and threat.get("file_path"):
-               file_hash = calculate_file_hash(threat["file_path"])
+def process_threat_report(
+    threat_system,
+    report,
+    endpoint_id,
+    state_path,
+    threat_action_policies,
+):
+    """Execute local threat policies, report threats, and persist unresolved state."""
 
-            if file_hash:
-               handled, message = executor.allow_threat(file_hash)
-            else:
-                 handled = False
-                 message = "Unable to calculate file hash for allow action"
+    unresolved = []
+    report_ok = True
 
-        else:
-            handled = False
-            message = f"Unsupported or missing data for action: {action}"
-
-        if not handled:
-            unresolved.append(threat)
-            logging.warning(
-                "Threat action failed: %s - %s",
-                threat.get("threat_name", "Unknown threat"),
-                message,
-            )
+    for threat in report.threats:
+        if not isinstance(threat, dict):
             continue
 
-        if threat_id:
-            status_map = {
-                "quarantine": "quarantined",
-                "kill": "killed",
-                "delete": "resolved",
-                "allow": "allowed",
-                "restore": "resolved",
-            }
-            status_ok, status_result = threat_system["reporter"].update_threat_status(
-                threat_id,
-                status_map.get(action, "resolved"),
-                action=action,
+        threat_name = threat.get("threat_name", "Unknown threat")
+        threat_type = str(threat.get("threat_type", "")).lower()
+
+        # ---------------------------------------------------------
+        # 1. Check locally synchronized policy
+        # ---------------------------------------------------------
+        action = threat_action_policies.get(threat_type)
+
+        if action:
+            logging.info(
+                "Local threat policy matched: threat_type=%s action=%s",
+                threat_type,
+                action,
             )
 
-            if not status_ok:
-                unresolved.append(threat)
-                logging.warning(
-                    "Threat action succeeded but server status update failed: %s",
-                    threat.get("threat_name", "Unknown threat"),
-                )
-                continue
+            handled, message = execute_threat_action(
+                threat_system,
+                action,
+                threat,
+            )
 
-        logging.info(
-            "Threat resolved: %s (%s)",
-            threat.get("threat_name", "Unknown threat"),
-            action,
+            if not handled:
+                unresolved.append(threat)
+
+                logging.warning(
+                    "Threat action failed: %s - %s",
+                    threat_name,
+                    message,
+                )
+        else:
+            handled = True
+
+            logging.info(
+                "No local threat policy matched: threat_type=%s",
+                threat_type,
+            )
+
+        # ---------------------------------------------------------
+        # 2. Report the threat AFTER local action
+        # ---------------------------------------------------------
+        success, response = threat_system["reporter"].report_threat(
+            threat,
+            endpoint_id=endpoint_id,
         )
 
+        if not success:
+            report_ok = False
+
+            if threat not in unresolved:
+                unresolved.append(threat)
+
+            logging.warning(
+                "Threat report failed: %s",
+                threat_name,
+            )
+
+            continue
+
+        # ---------------------------------------------------------
+        # 3. Update server status if local action succeeded
+        # ---------------------------------------------------------
+        if action and handled:
+            threat_id = None
+
+            if isinstance(response, dict):
+                threat_id = response.get("threat_id")
+
+            if threat_id:
+                status_map = {
+                    "quarantine": "quarantined",
+                    "kill": "killed",
+                    "delete": "resolved",
+                    "allow": "allowed",
+                    "restore": "resolved",
+                }
+
+                status = status_map.get(action)
+
+                if status:
+                    status_ok, status_result = (
+                        threat_system["reporter"].update_threat_status(
+                            threat_id,
+                            status,
+                            action=action,
+                        )
+                    )
+
+                    if not status_ok:
+                        unresolved.append(threat)
+
+                        logging.warning(
+                            "Threat action succeeded but server status "
+                            "update failed: %s",
+                            threat_name,
+                        )
+
+                        continue
+
+            logging.info(
+                "Threat resolved: %s (%s)",
+                threat_name,
+                action,
+            )
+
+        # -------------------------------------------------------------
+    # 4. Persist unresolved threat state
+    # -------------------------------------------------------------
     state_path = Path(state_path)
     state_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -160,7 +222,31 @@ def process_threat_report(threat_system, report, endpoint_id, state_path):
         encoding="utf-8",
     )
 
-    return ok, unresolved
+    # -------------------------------------------------------------
+    # 5. Report scan summary for console dashboard visibility
+    # -------------------------------------------------------------
+    try:
+        summary_ok, summary_result = threat_system["reporter"].report_scan_summary(
+            report,
+            endpoint_id,
+        )
+
+        if summary_ok:
+            logging.info("Scan summary recorded in console")
+        else:
+            logging.warning(
+                "Failed to record scan summary: %s",
+                summary_result.get("error", "Unknown error")
+                if isinstance(summary_result, dict)
+                else summary_result,
+            )
+    except Exception as e:
+        logging.warning(
+            "Exception reporting scan summary: %s",
+            e,
+        )
+
+    return report_ok, unresolved
 def execute_threat_action(
     threat_system,
     action: str,
@@ -230,6 +316,7 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
 
         threat_system = None
         next_scan_at = 0.0
+        threat_action_policies = {}
 
         while not self.stop_event.is_set():
             try:
@@ -267,6 +354,12 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
                 )
 
                 hb_ok, hb_msg = heartbeat(config)
+
+                if hb_ok and isinstance(hb_msg, dict):
+                    threat_action_policies = build_threat_action_policies(
+                        hb_msg.get("policies")
+                    )
+
 
                 if (
                     not hb_ok
@@ -412,6 +505,7 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
                             report,
                             config.get("endpoint_id"),
                             shared_threat_state_path(),
+                            threat_action_policies,
                         )
 
                         report_scan_command_result(
@@ -438,6 +532,7 @@ class KuaminiSecurityClientService(win32serviceutil.ServiceFramework):
                             report,
                             config.get("endpoint_id"),
                             shared_threat_state_path(),
+                            threat_action_policies,
                         )
 
                         next_scan_at = (
